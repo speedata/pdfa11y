@@ -312,6 +312,38 @@ func (e structElement) Attr(name string) string {
 	return s
 }
 
+// Attribute pulls a Name value out of the structure element's /A
+// attribute dictionary (or array of dictionaries). Returns "" when
+// /A is missing, when name is not present, or when the value is not
+// a Name.
+func (e structElement) Attribute(name string) string {
+	aObj, ok := e.dict.Get("A")
+	if !ok {
+		return ""
+	}
+	resolved, err := e.doc.r.Resolve(aObj)
+	if err != nil {
+		return ""
+	}
+	switch v := resolved.(type) {
+	case *pdd.Dict:
+		if n, ok := v.Name(name); ok {
+			return string(n)
+		}
+	case pdd.Array:
+		for _, item := range v {
+			d, err := e.doc.r.ResolveDict(item)
+			if err != nil || d == nil {
+				continue
+			}
+			if n, ok := d.Name(name); ok {
+				return string(n)
+			}
+		}
+	}
+	return ""
+}
+
 func (e structElement) Page() int {
 	pgObj, ok := e.dict.Get("Pg")
 	if !ok {

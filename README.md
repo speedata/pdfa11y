@@ -127,6 +127,28 @@ go run ./cmd/genfixtures
 Fixtures live alongside their tests in `internal/checks/*/testdata/`
 and are checked in. They are derived from one canonical base PDF.
 
+### Cross-validation against an external reference corpus
+
+`internal/realworld` carries a `TestReferenceCorpus` test that walks
+the [pdfa.org technique sample PDFs](https://pdfa.org/techniques-for-accessible-pdf/)
+and tabulates pdfa11y's verdict against each file's filename-encoded
+expectation (`_F<n>` means "should fail", anything else means
+"should pass"). The test never fails on a mismatch — it produces a
+`CROSS_VALIDATION.md` report at the repo root for human review.
+
+```sh
+# Without PDFA11Y_REFCORPUS the test skips silently:
+go test ./internal/realworld/
+
+# Set the env var to a corpus checkout to run it:
+PDFA11Y_REFCORPUS=/path/to/techniques-for-accessible-pdf \
+  go test ./internal/realworld/ -run TestReferenceCorpus -v
+```
+
+`CROSS_VALIDATION.md` is gitignored — re-run the test to regenerate
+it. Per-file expectations (orthogonal-but-real findings on PASS
+samples) are recorded in `internal/realworld/refcorpus_expectations_test.go`.
+
 ## Roadmap
 
 Short-term:

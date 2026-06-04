@@ -171,6 +171,20 @@ type StructElement interface {
 	// missing values yield the empty string.
 	Attr(name string) string
 
+	// Attribute returns a value from the structure element's /A
+	// attribute owner dictionary. PDF/UA structure attributes such as
+	// /ListNumbering (on L), /Scope (on TH), /RowSpan, /ColSpan,
+	// /Headers and friends live there rather than on the top-level
+	// element dict.
+	//
+	// /A may be either a single attribute-owner dictionary or an array
+	// of them; both shapes are searched in order. The returned value
+	// is the attribute's PDF Name as a string ("Decimal", "Row",
+	// "Both", …). Numeric and other non-name attribute values are not
+	// returned by this accessor and yield "". Add a typed accessor
+	// per data shape when a check needs it.
+	Attribute(name string) string
+
 	// Page returns the 1-based page number this structure element
 	// belongs to, resolved from its /Pg entry. Returns 0 when the
 	// element carries no /Pg (some authors only set it on leaves,
