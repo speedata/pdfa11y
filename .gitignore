@@ -1,0 +1,21 @@
+# Binaries
+/pdfa11y
+/dist/
+*.exe
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local test fixtures
+/testdata/local/
+
+# WASM build artefacts
+/web/pdfa11y.wasm
