@@ -113,6 +113,9 @@ func run() error {
 	if err := withStructTree("internal/checks/structure/testdata/tagged.pdf"); err != nil {
 		return err
 	}
+	if err := withUntaggedContent("internal/checks/structure/testdata/untagged-content.pdf"); err != nil {
+		return err
+	}
 	if err := withFigure("internal/checks/graphics/testdata/figure-with-alt.pdf",
 		"Sunset over the mountains"); err != nil {
 		return err
@@ -150,6 +153,10 @@ func run() error {
 	}
 	if err := withParentChildren("internal/checks/lists/testdata/list-no-li.pdf",
 		"L", "P"); err != nil {
+		return err
+	}
+	if err := withParentChildren("internal/checks/structure/testdata/unmapped-custom-tag.pdf",
+		"MyCustomTag", "P"); err != nil {
 		return err
 	}
 	if err := withFont("internal/checks/fonts/testdata/font-ok.pdf",
@@ -348,6 +355,23 @@ func withFont(dst, baseFont string, embedded, hasToUnicode bool) error {
 		resources["Font"] = fontMap
 	}
 	fontMap["FProbe"] = *fontRef
+
+	// Add a minimal content stream that references the synthetic font
+	// via Tf. The content-stream-aware checks only flag fonts that are
+	// actually used on a page; without this, declaring a font in
+	// /Resources is no longer enough to trigger a finding.
+	content := types.StreamDict{
+		Dict:    types.Dict{},
+		Content: []byte("BT /FProbe 12 Tf 72 720 Td (X) Tj ET\n"),
+	}
+	if err := content.Encode(); err != nil {
+		return err
+	}
+	contentRef, err := xrt.IndRefForNewObject(content)
+	if err != nil {
+		return err
+	}
+	pageDict["Contents"] = *contentRef
 
 	return writeAndLog(ctx, dst)
 }
@@ -666,6 +690,99 @@ func withStructTree(dst string) error {
 	}
 	cat["StructTreeRoot"] = *streeRef
 	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+
+	return writeAndLog(ctx, dst)
+}
+
+// withUntaggedContent emits a tagged PDF whose page paints text via Tj
+// outside of any BDC/BMC marked-content sequence. The structure tree
+// declares /MarkInfo /Marked true so the document claims tagged
+// status, making the loose content a real PDF/UA-1 §7.1 violation
+// rather than just an untagged file.
+func withUntaggedContent(dst string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+
+	// Build a font + a content stream that paints text NOT inside any
+	// BDC, plus a separate text run that IS inside a BDC -- so the
+	// finding has both kinds of evidence to verify against.
+	font := types.Dict{
+		"Type":      types.Name("Font"),
+		"Subtype":   types.Name("TrueType"),
+		"BaseFont":  types.Name("PDFA11YTestUntagged"),
+		"FirstChar": types.Integer(32),
+		"LastChar":  types.Integer(32),
+		"Widths":    types.Array{types.Integer(500)},
+	}
+	fontRef, err := xrt.IndRefForNewObject(font)
+	if err != nil {
+		return err
+	}
+
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	pageDict, err := xrt.DereferenceDict(kids[0])
+	if err != nil {
+		return err
+	}
+	pageDict["Resources"] = types.Dict{
+		"Font": types.Dict{"FProbe": *fontRef},
+	}
+
+	// First Tj is outside any BDC -- the violation. Second Tj sits
+	// inside a /P BDC sequence -- legitimately tagged.
+	content := types.StreamDict{
+		Dict: types.Dict{},
+		Content: []byte("BT /FProbe 12 Tf 72 720 Td (X) Tj ET\n" +
+			"/P <</MCID 0 >> BDC BT /FProbe 12 Tf 72 700 Td (Y) Tj ET EMC\n"),
+	}
+	if err := content.Encode(); err != nil {
+		return err
+	}
+	contentRef, err := xrt.IndRefForNewObject(content)
+	if err != nil {
+		return err
+	}
+	pageDict["Contents"] = *contentRef
 
 	return writeAndLog(ctx, dst)
 }

@@ -38,6 +38,54 @@ type Document interface {
 	// their Type0 parent and not surfaced separately. Order is
 	// undefined.
 	Fonts() ([]Font, error)
+
+	// Pages returns one PageReport per page in document order. Each
+	// report carries the facts derived from content-stream walking on
+	// that page: which fonts are actually referenced, which MCIDs are
+	// declared by marked-content, and which content lives outside any
+	// marked-content sequence. Backends without a content-stream
+	// walker return an empty slice with no error.
+	Pages() ([]PageReport, error)
+}
+
+// PageReport bundles the content-stream facts about a single page.
+// Fields are independent: a check typically uses one of them.
+type PageReport struct {
+	// Number is the 1-based page number.
+	Number int
+
+	// UsedFonts maps each font resource key referenced by a Tf
+	// operator on this page (e.g. "F1") to the resolved Font snapshot
+	// for that resource. Resource keys that resolve to no font dict
+	// are omitted.
+	UsedFonts map[string]Font
+
+	// ContentMCIDs is the set of MCIDs declared by BDC operators on
+	// this page (inline /MCID or via /Properties name reference).
+	ContentMCIDs map[int]bool
+
+	// StructTreeMCIDs is the set of MCIDs that the structure tree
+	// claims for this page (via MCR children — either bare integer
+	// K-entries or {Type:MCR, Pg, MCID} dictionaries).
+	StructTreeMCIDs map[int]bool
+
+	// UntaggedOps lists the real-content operators that ran while the
+	// marked-content stack was empty. "Real content" means text
+	// showing (Tj/TJ/'/"), XObject invocation (Do), path painting
+	// (S/s/f/F/f*/B/B*/b/b*) and inline-image (EI). The slice is
+	// capped at a small implementation-defined number so a single
+	// broken page does not flood the report.
+	UntaggedOps []UntaggedOp
+}
+
+// UntaggedOp is one occurrence of a real-content operator running
+// outside any marked-content sequence.
+type UntaggedOp struct {
+	// Operator is the keyword (e.g. "Tj", "Do", "f").
+	Operator string
+	// Offset is the byte position in the (joined) content stream
+	// where the operator was emitted. Useful for diagnostics.
+	Offset int64
 }
 
 // Object is an opaque handle to a PDF object obtained from a Document
@@ -76,9 +124,28 @@ type Font struct {
 	// is always true (Type3 glyphs live inline in the PDF).
 	Embedded bool
 	// HasToUnicode reports whether the font dict carries a /ToUnicode
-	// CMap that maps glyph codes back to Unicode -- without it text
-	// selection and screen-reader output are unreliable.
+	// CMap. Reporters keep this as a diagnostic alongside the looser
+	// HasUnicodeMapping; the actual PDF/UA acceptability lives in
+	// HasUnicodeMapping.
 	HasToUnicode bool
+	// Encoding is the value of /Encoding when it is a Name (e.g.
+	// "WinAnsiEncoding", "MacRomanEncoding"). When /Encoding is a
+	// dictionary, this holds the dictionary's /BaseEncoding (if a
+	// Name) and HasEncodingDifferences reports whether /Differences
+	// is also present.
+	Encoding                string
+	HasEncodingDifferences  bool
+	// HasUnicodeMapping reports whether the font satisfies PDF/UA-1
+	// §7.21.3.1: a /ToUnicode CMap, or a predefined encoding that
+	// implies the Unicode mapping (WinAnsi/MacRoman/MacExpert on
+	// non-symbolic simple fonts without a /Differences override).
+	HasUnicodeMapping bool
+	// IsSymbolic mirrors /FontDescriptor/Flags bit 3 -- the font
+	// uses an encoding outside the standard PDF encodings. For
+	// symbolic fonts the WinAnsi/MacRoman shortcut does NOT yield
+	// a deterministic Unicode mapping: the glyph at byte 0x41 is
+	// some symbol, not the letter "A".
+	IsSymbolic bool
 }
 
 // StructElement is a single node in the structure tree. Implementations

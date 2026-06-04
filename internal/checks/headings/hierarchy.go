@@ -60,6 +60,13 @@ func (c Hierarchy) Run(doc model.Document) []engine.Finding {
 
 	var headings []occurrence
 	collect(root, "/"+root.Type(), &headings)
+	if len(headings) == 0 {
+		return []engine.Finding{{
+			CheckID:  c.ID(),
+			Severity: engine.SeverityNotApplicable,
+			Message:  "document contains no numbered heading elements -- nothing to inspect",
+		}}
+	}
 
 	var findings []engine.Finding
 	prev := 0

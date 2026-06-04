@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	pdd "github.com/speedata/pdfdisassembler"
 
@@ -47,10 +48,11 @@ func LoadFile(path string) (model.Document, error) {
 
 // document is the pdfdisassembler-backed implementation of model.Document.
 type document struct {
-	r         *pdd.Reader
-	closer    io.Closer
-	roleMap   map[string]string     // populated by loadRoleMap; may be empty
-	pageIndex map[pdd.Reference]int // page-ref -> 1-based page number
+	r           *pdd.Reader
+	closer      io.Closer
+	roleMap     map[string]string     // populated by loadRoleMap; may be empty
+	pageIndex   map[pdd.Reference]int // page-ref -> 1-based page number
+	pageReports []model.PageReport    // cached result of Pages(); nil until first call
 }
 
 // loadRoleMap reads StructTreeRoot/RoleMap and caches custom-to-standard
@@ -341,11 +343,18 @@ func (d *document) Fonts() ([]model.Font, error) {
 			continue
 		}
 		baseFont, _ := fd.Name("BaseFont")
+		encName, hasDiff := d.fontEncoding(fd)
+		hasToU := fd.Has("ToUnicode")
+		isSym := d.fontIsSymbolic(fd, subtype)
 		fonts = append(fonts, model.Font{
-			Subtype:      subtype,
-			BaseFont:     string(baseFont),
-			Embedded:     d.fontIsEmbedded(fd, subtype),
-			HasToUnicode: fd.Has("ToUnicode"),
+			Subtype:                subtype,
+			BaseFont:               string(baseFont),
+			Embedded:               d.fontIsEmbedded(fd, subtype),
+			HasToUnicode:           hasToU,
+			Encoding:               encName,
+			HasEncodingDifferences: hasDiff,
+			IsSymbolic:             isSym,
+			HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
 		})
 	}
 	return fonts, nil
@@ -369,6 +378,123 @@ func (d *document) fontIsEmbedded(font *pdd.Dict, subtype string) bool {
 	default:
 		return descriptorHasFontFile(font)
 	}
+}
+
+// fontEncoding reads the /Encoding entry, returning the (possibly
+// /BaseEncoding) Name and whether a /Differences array is present.
+// /Encoding may be a Name, an inline Dict or an indirect ref to a Dict.
+func (d *document) fontEncoding(fd *pdd.Dict) (name string, hasDifferences bool) {
+	encObj, ok := fd.Get("Encoding")
+	if !ok {
+		return "", false
+	}
+	switch v := encObj.(type) {
+	case pdd.Name:
+		return string(v), false
+	case pdd.Reference:
+		ed, err := d.r.ResolveDict(v)
+		if err != nil || ed == nil {
+			return "", false
+		}
+		return dictEncoding(ed)
+	case *pdd.Dict:
+		return dictEncoding(v)
+	}
+	return "", false
+}
+
+func dictEncoding(d *pdd.Dict) (string, bool) {
+	base, _ := d.Name("BaseEncoding")
+	_, hasDiff := d.Get("Differences")
+	return string(base), hasDiff
+}
+
+// hasDeterministicUnicodeMapping reports whether a font without a
+// /ToUnicode CMap nonetheless satisfies PDF/UA-1 §7.21.3.1: a
+// non-symbolic simple font that declares WinAnsiEncoding,
+// MacRomanEncoding or MacExpertEncoding via /Encoding and does not
+// introduce a /Differences override has an implicit, deterministic
+// Unicode mapping derived from the encoding tables. Symbolic fonts
+// (Flags bit 3) carry custom glyph repertoires that the predefined
+// encodings cannot describe -- the glyph at byte 0x41 in a Symbol
+// or dingbats font is not "A". Type0 composite fonts require their
+// own analysis (predefined CMaps, descendant CIDFonts) which is not
+// yet implemented; callers fall back to requiring /ToUnicode for them.
+func hasDeterministicUnicodeMapping(subtype, encoding string, hasDifferences, isSymbolic bool) bool {
+	if hasDifferences || isSymbolic {
+		return false
+	}
+	switch subtype {
+	case "Type1", "TrueType", "MMType1":
+		switch encoding {
+		case "WinAnsiEncoding", "MacRomanEncoding", "MacExpertEncoding":
+			return true
+		}
+	}
+	return false
+}
+
+// fontIsSymbolic reports whether the font carries a custom glyph
+// repertoire that the WinAnsi/MacRoman/MacExpert encoding shortcut
+// cannot describe. Two signals are combined because authors
+// sometimes mis-declare the FontDescriptor /Flags:
+//
+//   - /FontDescriptor/Flags bit 3 (Symbolic) set, OR
+//   - /BaseFont name contains a well-known symbolic-font marker
+//     ("symbol", "dingbats", "wingdings", "webdings"). The subset
+//     prefix that precedes embedded names ("ABCDEF+") is stripped
+//     before the check.
+//
+// Either signal is sufficient. A font that lies about its Flags but
+// is named "ABCXYZ+SegoeUISymbol" is still recognised.
+func (d *document) fontIsSymbolic(font *pdd.Dict, subtype string) bool {
+	if flagSaysSymbolic(d, font, subtype) {
+		return true
+	}
+	if name, ok := font.Name("BaseFont"); ok {
+		if baseFontLooksSymbolic(string(name)) {
+			return true
+		}
+	}
+	return false
+}
+
+func flagSaysSymbolic(d *document, font *pdd.Dict, subtype string) bool {
+	var fd *pdd.Dict
+	if subtype == "Type0" {
+		arr, ok := font.Array("DescendantFonts")
+		if !ok || len(arr) == 0 {
+			return false
+		}
+		cid, err := d.r.ResolveDict(arr[0])
+		if err != nil || cid == nil {
+			return false
+		}
+		fd, _ = cid.Dict("FontDescriptor")
+	} else {
+		fd, _ = font.Dict("FontDescriptor")
+	}
+	if fd == nil {
+		return false
+	}
+	flags, ok := fd.Int("Flags")
+	if !ok {
+		return false
+	}
+	return flags&4 != 0 // bit 3
+}
+
+func baseFontLooksSymbolic(name string) bool {
+	if i := strings.IndexByte(name, '+'); i >= 0 && i < 10 {
+		name = name[i+1:]
+	}
+	lower := strings.ToLower(name)
+	for _, marker := range []string{"symbol", "dingbats", "wingdings", "webdings"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // descriptorHasFontFile resolves /FontDescriptor and looks for any of

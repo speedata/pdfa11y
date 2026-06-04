@@ -49,12 +49,21 @@ func (c FigureAlt) Run(doc model.Document) []engine.Finding {
 	}
 
 	var findings []engine.Finding
-	c.walk(root, "/"+root.Type(), &findings)
+	figureCount := 0
+	c.walk(root, "/"+root.Type(), &findings, &figureCount)
+	if figureCount == 0 {
+		return []engine.Finding{{
+			CheckID:  c.ID(),
+			Severity: engine.SeverityNotApplicable,
+			Message:  "document contains no Figure structure elements -- nothing to inspect",
+		}}
+	}
 	return findings
 }
 
-func (c FigureAlt) walk(elem model.StructElement, path string, out *[]engine.Finding) {
+func (c FigureAlt) walk(elem model.StructElement, path string, out *[]engine.Finding, count *int) {
 	if elem.Type() == "Figure" {
+		*count++
 		if elem.Attr("Alt") == "" && elem.Attr("ActualText") == "" {
 			*out = append(*out, engine.Finding{
 				CheckID:  c.ID(),
@@ -66,7 +75,7 @@ func (c FigureAlt) walk(elem model.StructElement, path string, out *[]engine.Fin
 		}
 	}
 	for _, child := range elem.Children() {
-		c.walk(child, path+"/"+child.Type(), out)
+		c.walk(child, path+"/"+child.Type(), out, count)
 	}
 }
 

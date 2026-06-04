@@ -44,12 +44,21 @@ func (c Structure) Run(doc model.Document) []engine.Finding {
 		}}
 	}
 	var findings []engine.Finding
-	c.walk(root, "/"+root.Type(), &findings)
+	listCount := 0
+	c.walk(root, "/"+root.Type(), &findings, &listCount)
+	if listCount == 0 {
+		return []engine.Finding{{
+			CheckID:  c.ID(),
+			Severity: engine.SeverityNotApplicable,
+			Message:  "document contains no L (list) structure elements -- nothing to inspect",
+		}}
+	}
 	return findings
 }
 
-func (c Structure) walk(elem model.StructElement, path string, out *[]engine.Finding) {
+func (c Structure) walk(elem model.StructElement, path string, out *[]engine.Finding, count *int) {
 	if elem.Type() == "L" {
+		*count++
 		if !hasItem(elem) {
 			*out = append(*out, engine.Finding{
 				CheckID:  c.ID(),
@@ -61,7 +70,7 @@ func (c Structure) walk(elem model.StructElement, path string, out *[]engine.Fin
 		}
 	}
 	for _, child := range elem.Children() {
-		c.walk(child, path+"/"+child.Type(), out)
+		c.walk(child, path+"/"+child.Type(), out, count)
 	}
 }
 

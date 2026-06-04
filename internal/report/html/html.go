@@ -198,9 +198,13 @@ const reportTemplate = `<!DOCTYPE html>
 <title>PDF/UA Accessibility Report</title>
 <style>
   :root {
-    --pass: #1f7a3e;
-    --warn: #a36500;
-    --fail: #b3261e;
+    /* Traffic-light palette: vivid, saturated colours so the three
+       states are luminance-distinct even for red-green colourblind
+       readers. Position in the state-grid is the primary signal --
+       these colours reinforce it, they do not carry it alone. */
+    --pass: #16a34a;  /* vivid grass green */
+    --warn: #f5b800;  /* clear traffic-light yellow */
+    --fail: #dc2626;  /* vivid red */
     --info: #1664c0;
     --muted: #6a6a6a;
     --rule: #e5e5e5;
@@ -288,8 +292,8 @@ const reportTemplate = `<!DOCTYPE html>
   .state-grid .state-cell { width: 12px; height: 12px; border-radius: 50%; justify-self: center; }
   .state-fail .state-cell.fail { background: var(--fail); }
   .state-warn .state-cell.warn { background: var(--warn); }
-  .state-pass .state-cell.pass { background: var(--pass); opacity: .55; }
-  .state-na   .state-cell      { background: #c8c8c8; opacity: .4; }
+  .state-pass .state-cell.pass { background: var(--pass); }
+  .state-na   .state-cell      { background: #c8c8c8; opacity: .5; }
   details.check.check-na .check-title { color: #888; font-style: italic; }
 
   .check-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-size: .8rem; flex: 0 0 auto; }
