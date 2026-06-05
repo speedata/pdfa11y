@@ -23,23 +23,14 @@ import (
 // PDF/UA-1 conforming and structurally rich: H1/H2 hierarchy, a list
 // with four LI/LBody items, a Figure with /Alt, five Type0 embedded
 // fonts with /ToUnicode CMaps, XMP with pdfuaid:part and dc:title,
-// Catalog /Lang, ViewerPreferences/DisplayDocTitle, MarkInfo/Marked.
+// Catalog /Lang, ViewerPreferences/DisplayDocTitle, MarkInfo/Marked,
+// /Tabs entry on every page.
 //
 // Vacuous passes (document does not exercise the check, so it
 // passes by absence of a violation):
 //   - MH-15-003: no Table element present.
-//
-// Known fixture limitations (real PDF/UA defects we accept on this
-// specific document; rebuild the fixture to clear them):
-//   - MH-08-001: the document omits /Tabs entirely; pdfa11y rightly
-//     flags this as a PDF/UA failure. The fixture predates the
-//     check and we keep it for now because regenerating the file
-//     would mean re-running glu, which is out of scope for this
-//     repo's test setup.
 func TestGluPDFUADemo(t *testing.T) {
-	knownLimitations := map[string]string{
-		"MH-08-001": "fixture predates the check; document omits /Tabs",
-	}
+	knownLimitations := map[string]string{}
 	doc, err := pdf.LoadFile("testdata/glu-pdfua-demo.pdf")
 	if err != nil {
 		t.Fatalf("load fixture: %v", err)
