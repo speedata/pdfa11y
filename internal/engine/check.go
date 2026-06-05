@@ -118,6 +118,7 @@ const (
 	CategoryTabOrder        Category = "08 Tab order"
 	CategoryOptionalContent Category = "20 Optional content"
 	CategorySecurity        Category = "26 Security"
+	CategoryNotes           Category = "19 Notes and references"
 )
 
 // Location optionally pinpoints where a finding occurs.

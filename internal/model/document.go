@@ -356,4 +356,11 @@ type StructElement interface {
 	// others omit it entirely) or when the referenced page is not
 	// found in the page tree.
 	Page() int
+
+	// Refs returns the StructElements referenced by /Ref (an array
+	// of indirect references on the element dict). Entries that do
+	// not resolve to a structure element are dropped: this signature
+	// cannot distinguish "no /Ref" from "broken /Ref". MH-19-001 uses
+	// it to follow Note/Reference cross-links.
+	Refs() []StructElement
 }

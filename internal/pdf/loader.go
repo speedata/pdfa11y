@@ -350,6 +350,33 @@ func (e structElement) Attribute(name string) string {
 	return ""
 }
 
+// Refs resolves the element's /Ref array (indirect references on
+// the StructElem dict) to the target StructElements. Targets that
+// either fail to resolve or that are not structure elements (no /S)
+// are dropped silently.
+func (e structElement) Refs() []model.StructElement {
+	refObj, ok := e.dict.Get("Ref")
+	if !ok {
+		return nil
+	}
+	arr, err := e.doc.r.ResolveArray(refObj)
+	if err != nil {
+		return nil
+	}
+	var out []model.StructElement
+	for _, item := range arr {
+		d, err := e.doc.r.ResolveDict(item)
+		if err != nil || d == nil {
+			continue
+		}
+		if _, hasS := d.Get("S"); !hasS {
+			continue
+		}
+		out = append(out, structElement{doc: e.doc, dict: d})
+	}
+	return out
+}
+
 func (e structElement) Page() int {
 	pgObj, ok := e.dict.Get("Pg")
 	if !ok {

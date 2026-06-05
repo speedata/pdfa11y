@@ -11,6 +11,7 @@ import (
 	_ "github.com/speedata/pdfa11y/internal/checks/lists"
 	_ "github.com/speedata/pdfa11y/internal/checks/metadata"
 	_ "github.com/speedata/pdfa11y/internal/checks/navigation"
+	_ "github.com/speedata/pdfa11y/internal/checks/notes"
 	_ "github.com/speedata/pdfa11y/internal/checks/optionalcontent"
 	_ "github.com/speedata/pdfa11y/internal/checks/security"
 	_ "github.com/speedata/pdfa11y/internal/checks/structure"

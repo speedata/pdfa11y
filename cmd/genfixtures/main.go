@@ -339,6 +339,20 @@ func run() error {
 		""); err != nil {
 		return err
 	}
+
+	// MH-19-001: Note carries /ID; /Ref targets resolve to /ID-bearing
+	// structure elements.
+	if err := withNote("internal/checks/notes/testdata/note-with-id.pdf",
+		"n1"); err != nil {
+		return err
+	}
+	if err := withNote("internal/checks/notes/testdata/note-no-id.pdf",
+		""); err != nil {
+		return err
+	}
+	if err := withReferenceToBareP("internal/checks/notes/testdata/ref-unresolved.pdf"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1023,6 +1037,141 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withNote builds Document → Note. When id is non-empty the Note
+// carries /ID; otherwise the entry is omitted -- the MH-19-001
+// half-A failure pattern.
+func withNote(dst, id string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	note := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Note"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	if id != "" {
+		note["ID"] = types.StringLiteral(id)
+	}
+	noteRef, err := xrt.IndRefForNewObject(note)
+	if err != nil {
+		return err
+	}
+	docElem["K"] = *noteRef
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
+}
+
+// withReferenceToBareP builds Document → [Note(/ID="n1"), P, Reference].
+// The Reference's /Ref array points at the P (which carries no /ID),
+// so MH-19-001's half B emits a finding while the Note itself passes.
+func withReferenceToBareP(dst string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	note := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Note"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+		"ID":   types.StringLiteral("n1"),
+	}
+	noteRef, err := xrt.IndRefForNewObject(note)
+	if err != nil {
+		return err
+	}
+	bareP := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("P"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	bareRef, err := xrt.IndRefForNewObject(bareP)
+	if err != nil {
+		return err
+	}
+	reference := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Reference"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+		"Ref":  types.Array{*bareRef},
+	}
+	refRef, err := xrt.IndRefForNewObject(reference)
+	if err != nil {
+		return err
+	}
+	docElem["K"] = types.Array{*noteRef, *bareRef, *refRef}
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
 }
 
 // withLangCoverage builds a tagged PDF with no Catalog /Lang and a
