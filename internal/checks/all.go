@@ -4,6 +4,7 @@ package checks
 
 import (
 	_ "github.com/speedata/pdfa11y/internal/checks/annotations"
+	_ "github.com/speedata/pdfa11y/internal/checks/files"
 	_ "github.com/speedata/pdfa11y/internal/checks/fonts"
 	_ "github.com/speedata/pdfa11y/internal/checks/graphics"
 	_ "github.com/speedata/pdfa11y/internal/checks/headings"

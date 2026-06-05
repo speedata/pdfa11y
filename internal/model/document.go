@@ -73,6 +73,12 @@ type Document interface {
 	// document has no /AcroForm or no /Fields.
 	AcroFormFields() ([]AcroFormField, error)
 
+	// AssociatedFiles enumerates filespecs reachable through /AF
+	// arrays on the catalog and on every page. Annotation- and
+	// XObject-level /AF arrays are not yet walked (planned). Used by
+	// MH-12-001 to verify every /AF entry declares /AFRelationship.
+	AssociatedFiles() ([]AssociatedFile, error)
+
 	// Encryption reports the document's security handler state in
 	// the subset needed by the MH-26 family of checks. For an
 	// unencrypted document the zero value (Encrypted=false) is
@@ -80,6 +86,27 @@ type Document interface {
 	// meaningless. For an encrypted document the flags reflect the
 	// permission bits actually granted by /P.
 	Encryption() EncryptionInfo
+}
+
+// AssociatedFile is a value snapshot of one filespec entry reached
+// via an /AF array on the catalog or a page. Used by MH-12-001 to
+// check that each entry declares /AFRelationship.
+type AssociatedFile struct {
+	// SourcePath identifies where the /AF array sat. "Catalog" for
+	// the document-level /AF; "Page N" (1-based) for a per-page /AF.
+	// Future extensions (annotation /AF, XObject /AF) will use the
+	// same kind of human-readable label.
+	SourcePath string
+
+	// Filename is /UF if present (Unicode form), else /F. Empty when
+	// neither is set -- such filespecs are unusual but not strictly
+	// disallowed.
+	Filename string
+
+	// Relationship is the /AFRelationship Name value (e.g. "Source",
+	// "Data", "Supplement", "Unspecified"). Empty when the entry is
+	// absent -- the MH-12-001 failure pattern.
+	Relationship string
 }
 
 // AcroFormField is a value snapshot of one terminal Widget annotation

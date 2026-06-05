@@ -373,6 +373,16 @@ func run() error {
 		"Other"); err != nil {
 		return err
 	}
+
+	// MH-12-001: Associated Files declare /AFRelationship.
+	if err := withAssociatedFile("internal/checks/files/testdata/af-with-relationship.pdf",
+		"Source"); err != nil {
+		return err
+	}
+	if err := withAssociatedFile("internal/checks/files/testdata/af-no-relationship.pdf",
+		""); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1057,6 +1067,57 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withAssociatedFile writes a PDF with a Catalog /AF array of one
+// filespec entry. The PDF bytes are emitted by hand because pdfcpu's
+// Writer strips the filespec during validation -- the minimal four-
+// object layout (Catalog, Pages, Page, Filespec) is identical to
+// writeBlankPDF plus the /AF reference. When relationship is
+// non-empty the filespec declares /AFRelationship (the MH-12-001
+// passing case); otherwise the entry is omitted (failing case).
+// The embedded file stream itself is intentionally absent -- the
+// check inspects only the filespec dictionary's /AFRelationship.
+func withAssociatedFile(dst, relationship string) error {
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.7\n")
+	buf.WriteString("%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AF [4 0 R] >>\nendobj\n")
+
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+
+	off4 := offset()
+	if relationship != "" {
+		fmt.Fprintf(&buf,
+			"4 0 obj\n<< /Type /Filespec /F (data.txt) /UF (data.txt) /AFRelationship /%s >>\nendobj\n",
+			relationship)
+	} else {
+		buf.WriteString("4 0 obj\n<< /Type /Filespec /F (data.txt) /UF (data.txt) >>\nendobj\n")
+	}
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 5\n")
+	buf.WriteString("0000000000 65535 f \n")
+	fmt.Fprintf(&buf, "%010d 00000 n \n", off1)
+	fmt.Fprintf(&buf, "%010d 00000 n \n", off2)
+	fmt.Fprintf(&buf, "%010d 00000 n \n", off3)
+	fmt.Fprintf(&buf, "%010d 00000 n \n", off4)
+
+	buf.WriteString("trailer\n<< /Size 5 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
 }
 
 // withCIDFontType2 builds a Type 0 composite font whose descendant
