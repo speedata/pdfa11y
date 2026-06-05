@@ -329,6 +329,16 @@ func run() error {
 		false); err != nil {
 		return err
 	}
+
+	// MH-11-002: per-element /Lang coverage when Catalog /Lang is absent.
+	if err := withLangCoverage("internal/checks/language/testdata/lang-coverage-ok.pdf",
+		"en-US"); err != nil {
+		return err
+	}
+	if err := withLangCoverage("internal/checks/language/testdata/lang-coverage-missing.pdf",
+		""); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1013,6 +1023,66 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withLangCoverage builds a tagged PDF with no Catalog /Lang and a
+// single P StructElem. When lang is non-empty, the P carries /Lang
+// (MH-11-002 passes); empty lang omits the entry and the P inherits
+// nothing -- the failure path. Catalog /Lang is deliberately omitted
+// so the check enters its per-element branch instead of declining.
+func withLangCoverage(dst, lang string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	pElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("P"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	if lang != "" {
+		pElem["Lang"] = types.StringLiteral(lang)
+	}
+	pRef, err := xrt.IndRefForNewObject(pElem)
+	if err != nil {
+		return err
+	}
+	docElem["K"] = *pRef
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
 }
 
 // withAcroFormField attaches a single AcroForm field whose merged
