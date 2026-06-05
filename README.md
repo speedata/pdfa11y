@@ -149,6 +149,13 @@ PDFA11Y_REFCORPUS=/path/to/techniques-for-accessible-pdf \
 it. Per-file expectations (orthogonal-but-real findings on PASS
 samples) are recorded in `internal/realworld/refcorpus_expectations_test.go`.
 
+The reference PDFs are © pdfa.org and licensed under
+[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). pdfa.org
+asks that consumers re-fetch the files directly from the technique
+pages rather than caching local snapshots, as the samples can change
+during the standard's development phase. The pdfa11y repository
+therefore does not vendor them.
+
 ## Roadmap
 
 Short-term:

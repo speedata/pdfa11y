@@ -45,7 +45,7 @@ var failureFilenamePattern = regexp.MustCompile(`_F\d+\.pdf$`)
 func TestReferenceCorpus(t *testing.T) {
 	corpus := os.Getenv("PDFA11Y_REFCORPUS")
 	if corpus == "" {
-		t.Skip("PDFA11Y_REFCORPUS is unset; set it to a checkout of the pdfa.org reference corpus to enable")
+		t.Skip("PDFA11Y_REFCORPUS is unset; point it at a fresh download of https://pdfa.org/techniques-for-accessible-pdf/ (CC-BY-4.0)")
 	}
 	if _, err := os.Stat(corpus); errors.Is(err, fs.ErrNotExist) {
 		t.Skipf("PDFA11Y_REFCORPUS=%s does not exist", corpus)
@@ -224,6 +224,10 @@ func buildReport(corpus string, rs []corpusResult) string {
 	fmt.Fprintf(&b, "# Cross-validation against pdfa.org reference corpus\n\n")
 	fmt.Fprintf(&b, "Generated %s.\n\n", time.Now().Format("2006-01-02 15:04 MST"))
 	fmt.Fprintf(&b, "Corpus: `%s` (%d PDFs).\n\n", corpus, len(rs))
+	fmt.Fprintf(&b, "Reference PDFs © pdfa.org, CC-BY-4.0. pdfa.org asks consumers\n")
+	fmt.Fprintf(&b, "to re-fetch the files from <https://pdfa.org/techniques-for-accessible-pdf/>\n")
+	fmt.Fprintf(&b, "rather than caching them, since the samples may change during the\n")
+	fmt.Fprintf(&b, "standard's development phase.\n\n")
 	fmt.Fprintf(&b, "`%s` (PDF/UA identifier missing in XMP) is excluded from the\n", noiseCheckID)
 	fmt.Fprintf(&b, "verdict because the pdfa.org reference set systematically omits it\n")
 	fmt.Fprintf(&b, "across all files; counting it would mask the per-failure assessment.\n\n")
