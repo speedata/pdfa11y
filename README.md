@@ -14,15 +14,19 @@ locally in the browser (WebAssembly); the PDF never leaves the machine.
 
 ## Status
 
-19 checks across 9 Matterhorn categories (structure tree, metadata,
-viewer preferences, fonts, natural language, graphics, headings,
-tables, lists). Structure-tree walking with role-map resolution, font
-enumeration, XMP introspection, content-stream tokenisation for
-used-fonts and MCID-consistency checks, and tri-state reporting are
-in place. Validated against the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
-(82 reference PDFs); current match rate is around 62%, with 0 known
-false positives -- divergences from PAC are all stricter findings or
+Several dozen checks across the Matterhorn schedules listed under
+[Implemented checks](#implemented-checks). Structure-tree walking
+with role-map resolution, font enumeration with /ToUnicode CMap
+parsing, XMP introspection, content-stream tokenisation (used
+fonts, MCID consistency, untagged content, per-font code coverage),
+annotation walking, and tri-state reporting are in place. Validated
+against the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
+(82 reference PDFs); current match rate is around 66%, with 0 known
+false positives -- divergences from PAC are stricter findings or
 Matterhorn human checks that need a person in the loop.
+
+Run `pdfa11y --list-rules` (or open the [live frontend](https://pdfuacheck.speedata.de))
+for the current, build-specific list of registered checks.
 
 Still missing: annotation / form-field checks, font-glyph-level
 encoding analysis, reading-order heuristics. See [Roadmap](#roadmap).
@@ -74,41 +78,42 @@ into the exit code accordingly.
 
 ## Implemented checks
 
-All checks currently apply to both PDF/UA-1 and PDF/UA-2. With
-`--spec auto` (default) the spec is detected per document via
-`pdfuaid:part` in the XMP metadata; `--spec pdfua1` or `pdfua2`
-forces a specific set.
+`pdfa11y --list-rules` prints the authoritative, version-specific
+list with IDs, titles, severities and WCAG mappings. The
+[live frontend](https://pdfuacheck.speedata.de) renders the same
+list from the loaded WebAssembly module under "What is and is not
+checked".
 
-| ID | Category | Title | WCAG |
-| --- | --- | --- | --- |
-| MH-01-002 | Structure tree | MarkInfo declares the document as marked | 1.3.1 |
-| MH-01-005 | Structure tree | Document has a structure tree | 1.3.1 |
-| MH-02-003 | Structure tree | Content-stream MCIDs match the structure tree | 1.3.1 |
-| MH-06-001 | Metadata | Document has a title in metadata | 2.4.2 |
-| MH-06-003 | Metadata | XMP metadata declares PDF/UA identifier | — |
-| MH-06-004 | Metadata | XMP metadata contains dc:title | 2.4.2 |
-| MH-07-001 | Viewer preferences | ViewerPreferences/DisplayDocTitle is true | 2.4.2 |
-| MH-09-001 | Fonts | All fonts are embedded | — |
-| MH-10-001 | Fonts | All fonts have a /ToUnicode map | 1.3.1 |
-| MH-11-001 | Natural language | Document declares a primary language | 3.1.1 |
-| MH-13-004 | Graphics | Figure has Alt or ActualText | 1.1.1 |
-| MH-14-001 | Structure tree | Real content is inside a marked-content sequence or Artifact | 1.3.1 |
-| MH-14-003 | Headings | Headings start at H1 and are properly nested | 1.3.1, 2.4.6 |
-| MH-14-006 | Headings | Heading style is consistent (H or H&lt;n&gt;, not both) | 1.3.1, 2.4.6 |
-| MH-15-003 | Tables | Table contains rows (TR) | 1.3.1 |
-| MH-16-001 | Lists | List contains list items (LI) | 1.3.1 |
-| MH-16-002 | Lists | List items contain LBody | 1.3.1 |
-| MH-16-003 | Lists | Lists declare /ListNumbering (Warning) | 1.3.1 |
-| MH-31-008 | Structure tree | Custom structure types are mapped to standard types | 1.3.1 |
+The check set currently spans these Matterhorn categories:
 
-Font checks (MH-09-001, MH-10-001) only flag fonts that are actually
-referenced from a content stream, not fonts declared in /Resources
-and never used. MH-16-003 is severity Warning rather than Error: the
-attribute defaults to None and is legitimately omitted on unordered
-lists, and pdfa11y cannot distinguish ordered from unordered without
-inspecting the Lbl glyph.
+| Schedule | Coverage |
+| --- | --- |
+| 01 Real content / Structure tree | MarkInfo, StructTreeRoot, MCID consistency, untagged content, custom-tag role-map |
+| 06 Metadata | DocInfo title, XMP `dc:title`, `pdfuaid:part`, title agreement |
+| 07 Viewer preferences | DisplayDocTitle |
+| 08 Tab order | `/Tabs` = S |
+| 09 Fonts | Embedding, `/ToUnicode` presence, `/ToUnicode` coverage |
+| 11 Natural language | Catalog `/Lang` |
+| 13 Graphics | Figure Alt / ActualText |
+| 14 Headings | Hierarchy, mixed H / Hn styles |
+| 15 Tables | Rows, TR child shape, TH `/Scope` |
+| 16 Lists | LI presence, LI / LBody, `/ListNumbering` |
+| 17 Math | Formula Alt / ActualText |
+| 20 Optional content | OCG `/Name` |
+| 26 Security | Encryption permits AT extraction |
+| 27 Navigation | Outlines on multi-page documents |
+| 28 Annotations and forms | Link `/Contents`, form `/TU`, struct-tree linkage, artifact subtypes, off-page hiding |
 
-Run `pdfa11y --list-rules` for the same list at runtime.
+All checks apply to both PDF/UA-1 and PDF/UA-2. `--spec auto`
+(default) detects the spec per document via `pdfuaid:part` in the
+XMP metadata; `--spec pdfua1` / `pdfua2` forces a specific set.
+
+A few checks have severity Warning rather than Error where the
+spec leaves room (e.g. MH-16-003 `/ListNumbering` defaults to
+None on unordered lists; MH-27-001 outlines on documents above a
+conventional length threshold). Font checks (MH-09-001, MH-10-001)
+only flag fonts that are actually referenced from a content
+stream, not fonts declared in `/Resources` and never used.
 
 ## Output formats
 

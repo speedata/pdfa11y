@@ -26,6 +26,7 @@ var Version = "dev"
 func main() {
 	js.Global().Set("pdfa11y", js.ValueOf(map[string]any{
 		"check":   js.FuncOf(check),
+		"rules":   js.FuncOf(rules),
 		"version": js.ValueOf(Version),
 	}))
 
@@ -33,6 +34,36 @@ func main() {
 	// the registered callbacks; blocking on an empty channel is the
 	// canonical Go-WASM idiom.
 	select {}
+}
+
+// rules returns the registered checks as a JS array of objects, so
+// the frontend can render an always-current list without hard-coding
+// it. Same data engine.All() / pdfa11y --list-rules expose.
+//
+//	pdfa11y.rules() => [
+//	    { id: "MH-01-002", title: "...", category: "01 Structure tree",
+//	      severity: "error", spec: "PDF/UA-1+2", wcag: ["1.3.1"] },
+//	    ...
+//	]
+func rules(_ js.Value, _ []js.Value) any {
+	all := engine.All()
+	out := make([]any, 0, len(all))
+	for _, c := range all {
+		wcag := c.WCAG()
+		wcagAny := make([]any, len(wcag))
+		for i, w := range wcag {
+			wcagAny[i] = w
+		}
+		out = append(out, map[string]any{
+			"id":       c.ID(),
+			"title":    c.Title(),
+			"category": string(c.Category()),
+			"severity": c.Severity().String(),
+			"spec":     c.Spec().String(),
+			"wcag":     wcagAny,
+		})
+	}
+	return js.ValueOf(out)
 }
 
 // check is the JS-facing entry point.

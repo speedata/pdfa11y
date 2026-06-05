@@ -39,6 +39,11 @@ function setDropState(state) {
     setStatus("Ready. Pick a PDF or drop one above.");
     setDropState("ready");
     dropSub.textContent = "PDF/UA checks run locally, in your browser.";
+
+    // Populate the scope section's rules table from the WASM module
+    // so the list never drifts from what this build actually runs.
+    renderRules();
+    renderVersion();
   } catch (err) {
     setStatus("Failed to load WebAssembly: " + err.message, true);
     setDropState(null);
@@ -69,6 +74,47 @@ picker.addEventListener("change", async e => {
   const f = e.target.files[0];
   if (f) await handleFile(f);
 });
+
+function renderVersion() {
+  const el = document.getElementById("version");
+  if (!el || !window.pdfa11y) return;
+  const v = window.pdfa11y.version;
+  if (!v) return;
+  // Prefix with "v" unless the build did not stamp one in (e.g.
+  // local "dev" builds).
+  el.textContent = /^\d/.test(v) ? "v" + v : v;
+}
+
+function renderRules() {
+  if (!window.pdfa11y || !window.pdfa11y.rules) return;
+  const rules = window.pdfa11y.rules();
+  if (!Array.isArray(rules)) return;
+
+  // Hero count in the alpha aside + scope-section header.
+  const alphaCount = document.getElementById("alphaCount");
+  const rulesCount = document.getElementById("rulesCount");
+  if (alphaCount) alphaCount.textContent = String(rules.length);
+  if (rulesCount) rulesCount.textContent = String(rules.length);
+
+  // Sort by ID for a stable layout (engine.All() already sorts, but
+  // we re-sort here so future ordering changes do not affect the UI).
+  const sorted = rules.slice().sort((a, b) => a.id.localeCompare(b.id));
+
+  const tbody = document.querySelector("#rulesTable tbody");
+  if (!tbody) return;
+  tbody.replaceChildren();
+  for (const r of sorted) {
+    const tr = document.createElement("tr");
+    const cells = [r.id, r.category, r.title, r.severity];
+    cells.forEach((value, idx) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      if (idx === 3) td.classList.add("sev-" + value);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+}
 
 async function handleFile(file) {
   if (!window.pdfa11y) {
