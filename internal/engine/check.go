@@ -114,6 +114,7 @@ const (
 	CategoryViewerPrefs     Category = "07 Viewer preferences"
 	CategoryInteractive     Category = "28 Annotations and forms"
 	CategoryStructure       Category = "01 Structure tree"
+	CategoryNavigation      Category = "27 Navigation"
 )
 
 // Location optionally pinpoints where a finding occurs.

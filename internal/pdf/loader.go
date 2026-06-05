@@ -142,6 +142,10 @@ func (d *document) resolveRole(name string) string {
 	return name
 }
 
+// PageCount returns the number of page leaves discovered during
+// loadPageIndex.
+func (d *document) PageCount() int { return len(d.pageIndex) }
+
 // Catalog returns the catalog wrapped in a model.Dict.
 func (d *document) Catalog() (model.Dict, error) {
 	c, err := d.r.Catalog()

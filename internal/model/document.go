@@ -46,6 +46,11 @@ type Document interface {
 	// marked-content sequence. Backends without a content-stream
 	// walker return an empty slice with no error.
 	Pages() ([]PageReport, error)
+
+	// PageCount returns the number of page leaves in the document,
+	// resolved from the page tree at load time. Cheap to call
+	// repeatedly; does not require content-stream walking.
+	PageCount() int
 }
 
 // PageReport bundles the content-stream facts about a single page.
