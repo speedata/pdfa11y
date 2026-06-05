@@ -58,6 +58,50 @@ type Document interface {
 	// Tooltip via /Parent chain, /StructParent, /F flags). Backends
 	// without annotation support return an empty slice with no error.
 	Annotations() ([]Annotation, error)
+
+	// OptionalContentGroups returns one snapshot per OCG dictionary
+	// listed in the catalog's /OCProperties/OCGs. Returns an empty
+	// slice with no error when the document has no /OCProperties at
+	// all (the common case for documents without layers).
+	OptionalContentGroups() ([]OptionalContentGroup, error)
+
+	// Encryption reports the document's security handler state in
+	// the subset needed by the MH-26 family of checks. For an
+	// unencrypted document the zero value (Encrypted=false) is
+	// returned; AllowExtractText / AllowAccessibility are then
+	// meaningless. For an encrypted document the flags reflect the
+	// permission bits actually granted by /P.
+	Encryption() EncryptionInfo
+}
+
+// OptionalContentGroup is a value snapshot of one OCG (PDF layer)
+// dictionary. Currently only /Name is surfaced because that is what
+// MH-20-001 needs; other entries (/Intent, /Usage) can be added when
+// further OCG checks land.
+type OptionalContentGroup struct {
+	// Name is the value of /Name on the OCG dictionary. Empty when
+	// the entry is missing or not a text string.
+	Name string
+}
+
+// EncryptionInfo reports a document's encryption-permission state.
+// PDF /P is a signed integer whose individual bits grant or deny
+// specific user actions; we only surface the bits that affect
+// accessibility.
+type EncryptionInfo struct {
+	// Encrypted is true when the document carries an /Encrypt
+	// trailer entry. False on plain (non-encrypted) PDFs.
+	Encrypted bool
+
+	// AllowExtractText reflects /P bit 5 (mask 16): permits copying
+	// or otherwise extracting text and graphics from the document.
+	AllowExtractText bool
+
+	// AllowAccessibility reflects /P bit 10 (mask 512): permits
+	// extraction of text and graphics for accessibility purposes,
+	// in particular for AT consumption. PDF/UA-1 §7.20 requires
+	// this bit on every encrypted conforming document.
+	AllowAccessibility bool
 }
 
 // Annotation is a value snapshot of a single page annotation.
@@ -137,6 +181,13 @@ type PageReport struct {
 	// capped at a small implementation-defined number so a single
 	// broken page does not flood the report.
 	UntaggedOps []UntaggedOp
+
+	// Tabs is the effective value of the page's /Tabs key, resolved
+	// with inheritance from /Pages ancestors per ISO 32000-1
+	// §7.7.3.4. Empty when no ancestor declared it. Valid PDF/UA
+	// value is "S" (Structure order); "R" (Row) and "C" (Column)
+	// are legal PDF but disallowed by PDF/UA.
+	Tabs string
 }
 
 // UntaggedOp is one occurrence of a real-content operator running

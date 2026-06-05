@@ -33,6 +33,7 @@ func (d *document) Pages() ([]model.PageReport, error) {
 			UsedFonts:       map[string]model.Font{},
 			ContentMCIDs:    map[int]bool{},
 			StructTreeMCIDs: treeMCIDs[p.Ref],
+			Tabs:            p.Tabs,
 		}
 		if rep.StructTreeMCIDs == nil {
 			rep.StructTreeMCIDs = map[int]bool{}
@@ -56,6 +57,7 @@ type pageInfo struct {
 	PageDict   *pdd.Dict
 	Fonts      *pdd.Dict // /Resources/Font, possibly inherited; may be nil
 	Properties *pdd.Dict // /Resources/Properties, possibly inherited; may be nil
+	Tabs       string    // /Tabs value, possibly inherited; "" if absent everywhere
 }
 
 // collectPages walks the page tree once and returns one pageInfo per
@@ -79,17 +81,18 @@ func (d *document) collectPages() ([]pageInfo, error) {
 	}
 	var pages []pageInfo
 	counter := 0
-	d.collectPagesWalk(ref, nil, nil, &pages, &counter)
+	d.collectPagesWalk(ref, nil, nil, "", &pages, &counter)
 	return pages, nil
 }
 
-func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inheritedProps *pdd.Dict, out *[]pageInfo, counter *int) {
+func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inheritedProps *pdd.Dict, inheritedTabs string, out *[]pageInfo, counter *int) {
 	pageDict, err := d.r.ResolveDict(ref)
 	if err != nil || pageDict == nil {
 		return
 	}
 	fonts := inheritedFonts
 	props := inheritedProps
+	tabs := inheritedTabs
 	if res, ok := pageDict.Dict("Resources"); ok && res != nil {
 		if f, ok := res.Dict("Font"); ok {
 			fonts = f
@@ -97,6 +100,9 @@ func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inherited
 		if p, ok := res.Dict("Properties"); ok {
 			props = p
 		}
+	}
+	if t, ok := pageDict.Name("Tabs"); ok {
+		tabs = string(t)
 	}
 	typeName, _ := pageDict.Name("Type")
 	switch typeName {
@@ -108,6 +114,7 @@ func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inherited
 			PageDict:   pageDict,
 			Fonts:      fonts,
 			Properties: props,
+			Tabs:       tabs,
 		})
 	case "Pages":
 		kids, ok := pageDict.Array("Kids")
@@ -119,7 +126,7 @@ func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inherited
 			if !ok {
 				continue
 			}
-			d.collectPagesWalk(kidRef, fonts, props, out, counter)
+			d.collectPagesWalk(kidRef, fonts, props, tabs, out, counter)
 		}
 	}
 }

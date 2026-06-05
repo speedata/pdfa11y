@@ -115,6 +115,9 @@ const (
 	CategoryInteractive     Category = "28 Annotations and forms"
 	CategoryStructure       Category = "01 Structure tree"
 	CategoryNavigation      Category = "27 Navigation"
+	CategoryTabOrder        Category = "08 Tab order"
+	CategoryOptionalContent Category = "20 Optional content"
+	CategorySecurity        Category = "26 Security"
 )
 
 // Location optionally pinpoints where a finding occurs.
