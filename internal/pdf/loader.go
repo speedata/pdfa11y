@@ -412,6 +412,7 @@ func (d *document) Fonts() ([]model.Font, error) {
 		hasToU := fd.Has("ToUnicode")
 		isSym := d.fontIsSymbolic(fd, subtype)
 		mappings, codeBytes := d.parseToUnicodeFromFont(fd)
+		cidSubtype, cidToGID := d.cidDescendantInfo(fd, subtype)
 		fonts = append(fonts, model.Font{
 			Subtype:                subtype,
 			BaseFont:               string(baseFont),
@@ -423,6 +424,8 @@ func (d *document) Fonts() ([]model.Font, error) {
 			HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
 			ToUnicodeMappings:      mappings,
 			ToUnicodeCodeBytes:     codeBytes,
+			CIDSubtype:             cidSubtype,
+			CIDToGIDMap:            cidToGID,
 		})
 	}
 	return fonts, nil
@@ -446,6 +449,51 @@ func (d *document) fontIsEmbedded(font *pdd.Dict, subtype string) bool {
 	default:
 		return descriptorHasFontFile(font)
 	}
+}
+
+// cidDescendantInfo resolves the first DescendantFonts entry for a
+// Type0 font and reports its /Subtype plus the shape of its
+// /CIDToGIDMap entry. Returns ("", "") for non-Type0 fonts or when
+// the descendant cannot be resolved. CIDToGIDMap classification:
+//   - "Identity" — explicit /Identity name OR entry absent (ISO
+//     32000-1 §9.7.4.2 makes Identity the default)
+//   - "Stream"   — a stream is present
+//   - <name>     — any other Name value (the MH-31-001 failure path)
+// Only meaningful when the descendant is CIDFontType2; CIDFontType0
+// (Adobe CFF source) has no CIDToGIDMap at all and the field stays
+// "".
+func (d *document) cidDescendantInfo(font *pdd.Dict, subtype string) (cidSubtype, cidToGIDMap string) {
+	if subtype != "Type0" {
+		return "", ""
+	}
+	arr, ok := font.Array("DescendantFonts")
+	if !ok || len(arr) == 0 {
+		return "", ""
+	}
+	cid, err := d.r.ResolveDict(arr[0])
+	if err != nil || cid == nil {
+		return "", ""
+	}
+	cn, _ := cid.Name("Subtype")
+	cidSubtype = string(cn)
+	if cidSubtype != "CIDFontType2" {
+		return cidSubtype, ""
+	}
+	mapObj, present := cid.Get("CIDToGIDMap")
+	if !present {
+		return cidSubtype, "Identity"
+	}
+	resolved, err := d.r.Resolve(mapObj)
+	if err != nil {
+		return cidSubtype, ""
+	}
+	switch v := resolved.(type) {
+	case pdd.Name:
+		return cidSubtype, string(v)
+	case *pdd.Stream:
+		return cidSubtype, "Stream"
+	}
+	return cidSubtype, ""
 }
 
 // fontEncoding reads the /Encoding entry, returning the (possibly

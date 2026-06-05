@@ -311,6 +311,23 @@ type Font struct {
 	// declared; the walker then falls back to 2 for Type0 fonts
 	// and 1 for everything else.
 	ToUnicodeCodeBytes int
+
+	// CIDSubtype is the /Subtype of the descendant CIDFont for
+	// Type0 composite fonts: "CIDFontType0" (Adobe CFF source) or
+	// "CIDFontType2" (TrueType source). Empty when the font is not
+	// Type0 or has no resolvable descendant.
+	CIDSubtype string
+
+	// CIDToGIDMap reflects the descendant CIDFont's /CIDToGIDMap
+	// entry. Values:
+	//   - "Identity" — name set to /Identity (or the entry omitted,
+	//     for which ISO 32000-1 §9.7.4.2 defines Identity as the
+	//     default)
+	//   - "Stream"   — a stream is present, mapping CIDs to GIDs
+	//   - other      — a non-Identity Name was set (the MH-31-001
+	//     failure pattern)
+	// Empty when the font is not a CIDFontType2 descendant.
+	CIDToGIDMap string
 }
 
 // StructElement is a single node in the structure tree. Implementations

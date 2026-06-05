@@ -363,6 +363,16 @@ func run() error {
 		"Type1", "PDFA11YTestT1"); err != nil {
 		return err
 	}
+
+	// MH-31-001: CIDFontType2 declares /CIDToGIDMap = Identity or stream.
+	if err := withCIDFontType2("internal/checks/fonts/testdata/cid-identity.pdf",
+		"Identity"); err != nil {
+		return err
+	}
+	if err := withCIDFontType2("internal/checks/fonts/testdata/cid-bad-name.pdf",
+		"Other"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1047,6 +1057,98 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withCIDFontType2 builds a Type 0 composite font whose descendant
+// is a CIDFontType2 with the given /CIDToGIDMap Name value (e.g.
+// "Identity" for the passing case, "Other" for the MH-31-001
+// failure case). The font program is embedded so MH-09-001 stays
+// quiet on the fixture.
+func withCIDFontType2(dst, cidToGIDMap string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+
+	// Embedded font program (FontFile2 for TrueType-backed CID).
+	ff2 := types.StreamDict{
+		Dict:    types.Dict{"Length1": types.Integer(4)},
+		Content: []byte("STUB"),
+	}
+	if err := ff2.Encode(); err != nil {
+		return err
+	}
+	ff2Ref, err := xrt.IndRefForNewObject(ff2)
+	if err != nil {
+		return err
+	}
+	fd := types.Dict{
+		"Type":        types.Name("FontDescriptor"),
+		"FontName":    types.Name("PDFA11YCIDTest"),
+		"Flags":       types.Integer(32),
+		"FontBBox":    types.Array{types.Integer(0), types.Integer(0), types.Integer(1000), types.Integer(1000)},
+		"ItalicAngle": types.Integer(0),
+		"Ascent":      types.Integer(800),
+		"Descent":     types.Integer(-200),
+		"CapHeight":   types.Integer(700),
+		"StemV":       types.Integer(80),
+		"FontFile2":   *ff2Ref,
+	}
+	fdRef, err := xrt.IndRefForNewObject(fd)
+	if err != nil {
+		return err
+	}
+
+	// CIDSystemInfo (mandatory on a CIDFont).
+	csi := types.Dict{
+		"Registry":   types.StringLiteral("Adobe"),
+		"Ordering":   types.StringLiteral("Identity"),
+		"Supplement": types.Integer(0),
+	}
+
+	cidFont := types.Dict{
+		"Type":           types.Name("Font"),
+		"Subtype":        types.Name("CIDFontType2"),
+		"BaseFont":       types.Name("PDFA11YCIDTest"),
+		"CIDSystemInfo":  csi,
+		"FontDescriptor": *fdRef,
+		"CIDToGIDMap":    types.Name(cidToGIDMap),
+	}
+	cidRef, err := xrt.IndRefForNewObject(cidFont)
+	if err != nil {
+		return err
+	}
+
+	font := types.Dict{
+		"Type":            types.Name("Font"),
+		"Subtype":         types.Name("Type0"),
+		"BaseFont":        types.Name("PDFA11YCIDTest"),
+		"Encoding":        types.Name("Identity-H"),
+		"DescendantFonts": types.Array{*cidRef},
+	}
+	fontRef, err := xrt.IndRefForNewObject(font)
+	if err != nil {
+		return err
+	}
+
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	pageDict, err := xrt.DereferenceDict(kids[0])
+	if err != nil {
+		return err
+	}
+	pageDict["Resources"] = types.Dict{
+		"Font": types.Dict{"FProbe": *fontRef},
+	}
+	return writeAndLog(ctx, dst)
 }
 
 // xmpUA2 declares pdfuaid:part = 2, the PDF/UA-2 conformance marker.
