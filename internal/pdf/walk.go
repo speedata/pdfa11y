@@ -34,6 +34,7 @@ func (d *document) Pages() ([]model.PageReport, error) {
 			ContentMCIDs:    map[int]bool{},
 			StructTreeMCIDs: treeMCIDs[p.Ref],
 			Tabs:            p.Tabs,
+			FontCodes:       map[string]map[uint32]bool{},
 		}
 		if rep.StructTreeMCIDs == nil {
 			rep.StructTreeMCIDs = map[int]bool{}
@@ -143,6 +144,8 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 		return nil
 	}
 	mcDepth := 0
+	currentFontKey := ""
+	currentFontCodeBytes := 1 // 1-byte default for simple fonts
 	sc := contentstream.New(body)
 	for {
 		op, err := sc.Next()
@@ -167,23 +170,137 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 		case "Tf":
 			if len(op.Operands) >= 1 && op.Operands[0].Kind == contentstream.KindName {
 				key := op.Operands[0].Name
-				if _, already := rep.UsedFonts[key]; !already {
-					if f, ok := d.resolveResourceFont(p.Fonts, key); ok {
+				currentFontKey = key
+				var f model.Font
+				var ok bool
+				if f, ok = rep.UsedFonts[key]; !ok {
+					f, ok = d.resolveResourceFont(p.Fonts, key)
+					if ok {
 						rep.UsedFonts[key] = f
 					}
 				}
+				currentFontCodeBytes = codeBytesFor(f, ok)
 			}
+		case "Tj", "'", `"`:
+			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, textArgBytes(op))
+			recordIfUntagged(rep, op, mcDepth)
+		case "TJ":
+			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, tjArrayBytes(op))
+			recordIfUntagged(rep, op, mcDepth)
 		default:
-			if mcDepth == 0 && isRealContentOp(op.Operator) {
-				if len(rep.UntaggedOps) < maxUntaggedOpsPerPage {
-					rep.UntaggedOps = append(rep.UntaggedOps, model.UntaggedOp{
-						Operator: op.Operator,
-						Offset:   op.Offset,
-					})
-				}
-			}
+			recordIfUntagged(rep, op, mcDepth)
 		}
 	}
+}
+
+// recordIfUntagged appends the op to rep.UntaggedOps when it is a
+// real-content operator running outside any marked-content sequence.
+// Capped at maxUntaggedOpsPerPage so a single broken page does not
+// flood the report.
+func recordIfUntagged(rep *model.PageReport, op contentstream.Op, mcDepth int) {
+	if mcDepth != 0 || !isRealContentOp(op.Operator) {
+		return
+	}
+	if len(rep.UntaggedOps) >= maxUntaggedOpsPerPage {
+		return
+	}
+	rep.UntaggedOps = append(rep.UntaggedOps, model.UntaggedOp{
+		Operator: op.Operator,
+		Offset:   op.Offset,
+	})
+}
+
+// recordTextCodes splits raw text-show bytes into per-font codes and
+// records them in rep.FontCodes. codeBytes is the active font's
+// code width (1 for simple fonts and Type0 with single-byte CMaps;
+// 2 for Type0 with Identity-H or other two-byte CMaps).
+func recordTextCodes(rep *model.PageReport, fontKey string, codeBytes int, raw []byte) {
+	if fontKey == "" || len(raw) == 0 {
+		return
+	}
+	if codeBytes < 1 {
+		codeBytes = 1
+	}
+	set, ok := rep.FontCodes[fontKey]
+	if !ok {
+		set = map[uint32]bool{}
+		rep.FontCodes[fontKey] = set
+	}
+	switch codeBytes {
+	case 1:
+		for _, b := range raw {
+			set[uint32(b)] = true
+		}
+	case 2:
+		for i := 0; i+1 < len(raw); i += 2 {
+			set[uint32(raw[i])<<8|uint32(raw[i+1])] = true
+		}
+	default:
+		// >2-byte codes are rare in practice; pack big-endian.
+		for i := 0; i+codeBytes <= len(raw); i += codeBytes {
+			var v uint32
+			for j := 0; j < codeBytes && j < 4; j++ {
+				v = v<<8 | uint32(raw[i+j])
+			}
+			set[v] = true
+		}
+	}
+}
+
+// codeBytesFor picks the right code width for a Tf-referenced font.
+//
+// Simple fonts (Type1, TrueType, MMType1, Type3) always emit one
+// byte per glyph in the Tj/TJ stream regardless of what their
+// /ToUnicode codespace declares -- producers routinely declare a
+// permissive <0000>-<FFFF> codespace on a 1-byte CMap, which means
+// the codespace alone is not a reliable signal.
+//
+// For Type0 composite fonts the codespace IS authoritative
+// (Identity-H is two-byte; custom CMaps may declare one-byte).
+// Default to 2 when Type0 has no /ToUnicode at all.
+//
+// resolved=false (unknown font dict) collapses to the 1-byte
+// fallback so we never accidentally pack ASCII text as 2-byte CIDs.
+func codeBytesFor(f model.Font, resolved bool) int {
+	if !resolved {
+		return 1
+	}
+	if f.Subtype != "Type0" {
+		return 1
+	}
+	if f.ToUnicodeCodeBytes > 0 {
+		return f.ToUnicodeCodeBytes
+	}
+	return 2
+}
+
+// textArgBytes returns the raw string operand of Tj, ', " operators.
+func textArgBytes(op contentstream.Op) []byte {
+	if len(op.Operands) == 0 {
+		return nil
+	}
+	// Tj has one string operand; ' has one string; " has two
+	// numbers (Tw, Tc) followed by the string.
+	last := op.Operands[len(op.Operands)-1]
+	if last.Kind == contentstream.KindString {
+		return last.Bytes
+	}
+	return nil
+}
+
+// tjArrayBytes concatenates all string elements of the TJ operand
+// array, ignoring the kerning numbers.
+func tjArrayBytes(op contentstream.Op) []byte {
+	if len(op.Operands) == 0 || op.Operands[0].Kind != contentstream.KindArray {
+		return nil
+	}
+	var out []byte
+	for _, el := range op.Operands[0].Array {
+		if el.Kind == contentstream.KindString {
+			out = append(out, el.Bytes...)
+		}
+	}
+	return out
 }
 
 // pageContentBytes returns the decoded /Contents bytes for a page,
@@ -273,6 +390,7 @@ func (d *document) fontFromDict(fd *pdd.Dict) model.Font {
 	encName, hasDiff := d.fontEncoding(fd)
 	hasToU := fd.Has("ToUnicode")
 	isSym := d.fontIsSymbolic(fd, subtype)
+	mappings, codeBytes := d.parseToUnicodeFromFont(fd)
 	return model.Font{
 		Subtype:                subtype,
 		BaseFont:               string(baseFont),
@@ -282,7 +400,31 @@ func (d *document) fontFromDict(fd *pdd.Dict) model.Font {
 		HasEncodingDifferences: hasDiff,
 		IsSymbolic:             isSym,
 		HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
+		ToUnicodeMappings:      mappings,
+		ToUnicodeCodeBytes:     codeBytes,
 	}
+}
+
+// parseToUnicodeFromFont decodes the font's /ToUnicode stream (when
+// present) and parses its bfchar / bfrange mappings together with
+// the codespace byte width. Returns (nil, 0) for fonts without a
+// /ToUnicode entry. Returns an empty (non-nil) map for streams that
+// parse but contain no mappings.
+func (d *document) parseToUnicodeFromFont(fd *pdd.Dict) (map[uint32]string, int) {
+	touObj, ok := fd.Get("ToUnicode")
+	if !ok {
+		return nil, 0
+	}
+	body, err := d.r.DecodeStream(touObj)
+	if err != nil {
+		return nil, 0
+	}
+	cov := parseToUnicode(body)
+	mappings := cov.Mappings
+	if mappings == nil {
+		mappings = map[uint32]string{}
+	}
+	return mappings, cov.CodeBytes
 }
 
 // isRealContentOp reports whether a content-stream operator paints

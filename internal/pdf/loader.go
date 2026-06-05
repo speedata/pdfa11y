@@ -384,6 +384,7 @@ func (d *document) Fonts() ([]model.Font, error) {
 		encName, hasDiff := d.fontEncoding(fd)
 		hasToU := fd.Has("ToUnicode")
 		isSym := d.fontIsSymbolic(fd, subtype)
+		mappings, codeBytes := d.parseToUnicodeFromFont(fd)
 		fonts = append(fonts, model.Font{
 			Subtype:                subtype,
 			BaseFont:               string(baseFont),
@@ -393,6 +394,8 @@ func (d *document) Fonts() ([]model.Font, error) {
 			HasEncodingDifferences: hasDiff,
 			IsSymbolic:             isSym,
 			HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
+			ToUnicodeMappings:      mappings,
+			ToUnicodeCodeBytes:     codeBytes,
 		})
 	}
 	return fonts, nil

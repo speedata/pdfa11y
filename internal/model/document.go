@@ -188,6 +188,19 @@ type PageReport struct {
 	// value is "S" (Structure order); "R" (Row) and "C" (Column)
 	// are legal PDF but disallowed by PDF/UA.
 	Tabs string
+
+	// FontCodes maps each font resource key (matching a UsedFonts
+	// entry) to the set of character codes actually rendered with
+	// that font on this page. Decoding follows the active font's
+	// subtype:
+	//
+	//   - Simple fonts (Type1, TrueType, MMType1, Type3): each byte
+	//     of the Tj/TJ string is one code in [0, 255].
+	//   - Composite fonts (Type0) with Identity-H/V: each pair of
+	//     bytes is one 16-bit CID. Other CMaps are approximated as
+	//     Identity-H -- a proper implementation would walk the
+	//     encoded CMap, which is a future refinement.
+	FontCodes map[string]map[uint32]bool
 }
 
 // UntaggedOp is one occurrence of a real-content operator running
@@ -258,6 +271,22 @@ type Font struct {
 	// a deterministic Unicode mapping: the glyph at byte 0x41 is
 	// some symbol, not the letter "A".
 	IsSymbolic bool
+
+	// ToUnicodeMappings is the parsed content of the /ToUnicode
+	// CMap when one is present: source code → Unicode replacement.
+	// nil when the font has no /ToUnicode stream. Empty (zero
+	// length) when the CMap is present but declares only a
+	// codespace range with no bfchar / bfrange entries -- the F01
+	// failure pattern.
+	ToUnicodeMappings map[uint32]string
+
+	// ToUnicodeCodeBytes is the byte width declared by the
+	// /ToUnicode CMap's begincodespacerange (1 or 2). Used by the
+	// content-stream walker to split Tj/TJ bytes into the right
+	// number of codes per glyph. Zero when no codespace was
+	// declared; the walker then falls back to 2 for Type0 fonts
+	// and 1 for everything else.
+	ToUnicodeCodeBytes int
 }
 
 // StructElement is a single node in the structure tree. Implementations
