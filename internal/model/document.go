@@ -98,6 +98,15 @@ type Annotation struct {
 	// printed but not shown on screen. Treated like Hidden for
 	// accessibility purposes (no AT surface).
 	NoView bool
+
+	// OffPage is true when the annotation's /Rect lies entirely
+	// outside the page's visible box (CropBox if present, else
+	// MediaBox). Such annotations cannot be perceived by sighted
+	// readers and must therefore also be hidden from assistive
+	// technology via the Hidden or NoView flags -- a printed-but-
+	// off-page annotation that AT still reads creates a phantom
+	// reading-order entry.
+	OffPage bool
 }
 
 // PageReport bundles the content-stream facts about a single page.
