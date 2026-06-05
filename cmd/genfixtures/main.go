@@ -171,6 +171,154 @@ func run() error {
 		"PDFA11YTestNoToU", true, false); err != nil {
 		return err
 	}
+
+	// Annotation fixtures: one passing + one failing pair per MH-28 check.
+	if err := withLinkAnnotation("internal/checks/annotations/testdata/link-with-contents.pdf",
+		"Project documentation"); err != nil {
+		return err
+	}
+	if err := withLinkAnnotation("internal/checks/annotations/testdata/link-no-contents.pdf",
+		""); err != nil {
+		return err
+	}
+	if err := withWidgetAnnotation("internal/checks/annotations/testdata/widget-with-tu.pdf",
+		"First name"); err != nil {
+		return err
+	}
+	if err := withWidgetAnnotation("internal/checks/annotations/testdata/widget-no-tu.pdf",
+		""); err != nil {
+		return err
+	}
+	if err := withTextAnnotation("internal/checks/annotations/testdata/annot-with-structparent.pdf",
+		true); err != nil {
+		return err
+	}
+	if err := withTextAnnotation("internal/checks/annotations/testdata/annot-no-structparent.pdf",
+		false); err != nil {
+		return err
+	}
+	if err := withArtifactAnnotation("internal/checks/annotations/testdata/watermark-no-structparent.pdf",
+		"Watermark", false); err != nil {
+		return err
+	}
+	if err := withArtifactAnnotation("internal/checks/annotations/testdata/watermark-with-structparent.pdf",
+		"Watermark", true); err != nil {
+		return err
+	}
+	if err := withOffPageAnnotation("internal/checks/annotations/testdata/offpage-hidden.pdf",
+		true); err != nil {
+		return err
+	}
+	if err := withOffPageAnnotation("internal/checks/annotations/testdata/offpage-visible.pdf",
+		false); err != nil {
+		return err
+	}
+
+	// MH-15-004 / MH-15-005: Table row child types and TH /Scope.
+	if err := withTableRow("internal/checks/tables/testdata/table-row-cells.pdf",
+		[]string{"TD", "TD"}); err != nil {
+		return err
+	}
+	if err := withTableRow("internal/checks/tables/testdata/table-row-mixed.pdf",
+		[]string{"P", "TD"}); err != nil {
+		return err
+	}
+	if err := withTableHeader("internal/checks/tables/testdata/table-th-with-scope.pdf",
+		"Row"); err != nil {
+		return err
+	}
+	if err := withTableHeader("internal/checks/tables/testdata/table-th-no-scope.pdf",
+		""); err != nil {
+		return err
+	}
+
+	// MH-16-002 / MH-16-003: List item children and /ListNumbering.
+	if err := withListItem("internal/checks/lists/testdata/list-li-with-lbody.pdf",
+		[]string{"Lbl", "LBody"}); err != nil {
+		return err
+	}
+	if err := withListItem("internal/checks/lists/testdata/list-li-no-lbody.pdf",
+		[]string{"P"}); err != nil {
+		return err
+	}
+	if err := withListNumbering("internal/checks/lists/testdata/list-with-numbering.pdf",
+		"Decimal"); err != nil {
+		return err
+	}
+	if err := withListNumbering("internal/checks/lists/testdata/list-no-numbering.pdf",
+		""); err != nil {
+		return err
+	}
+
+	// MH-14-006: heading style consistency (no /H + /H<n> mix).
+	if err := withMixedHeadings("internal/checks/headings/testdata/heading-style-hn-only.pdf",
+		[]string{"H1", "H2"}); err != nil {
+		return err
+	}
+	if err := withMixedHeadings("internal/checks/headings/testdata/heading-style-mixed.pdf",
+		[]string{"H", "H1"}); err != nil {
+		return err
+	}
+
+	// MH-17-001: Formula has /Alt or /ActualText.
+	if err := withFormula("internal/checks/graphics/testdata/formula-with-alt.pdf",
+		"Pythagorean theorem"); err != nil {
+		return err
+	}
+	if err := withFormula("internal/checks/graphics/testdata/formula-no-alt.pdf",
+		""); err != nil {
+		return err
+	}
+
+	// MH-06-005: DocumentInfo /Title and XMP dc:title agree.
+	if err := withTitleAgreement("internal/checks/metadata/testdata/title-agreement-ok.pdf",
+		"Sample", "Sample"); err != nil {
+		return err
+	}
+	if err := withTitleAgreement("internal/checks/metadata/testdata/title-agreement-mismatch.pdf",
+		"Sample", "Different"); err != nil {
+		return err
+	}
+
+	// MH-20-001: OCG /Name.
+	if err := withOCG("internal/checks/optionalcontent/testdata/ocg-with-name.pdf",
+		"Drawing geometry"); err != nil {
+		return err
+	}
+	if err := withOCG("internal/checks/optionalcontent/testdata/ocg-no-name.pdf",
+		""); err != nil {
+		return err
+	}
+
+	// MH-27-001: /Outlines on > 21-page documents.
+	if err := withOutlines("internal/checks/navigation/testdata/outlines-present.pdf",
+		22, true); err != nil {
+		return err
+	}
+	if err := withOutlines("internal/checks/navigation/testdata/outlines-missing.pdf",
+		22, false); err != nil {
+		return err
+	}
+
+	// MH-08-001: page /Tabs = S.
+	if err := withTabs("internal/checks/taborder/testdata/tabs-s.pdf",
+		"S"); err != nil {
+		return err
+	}
+	if err := withTabs("internal/checks/taborder/testdata/tabs-r.pdf",
+		"R"); err != nil {
+		return err
+	}
+
+	// MH-26-001: encryption permits accessibility extraction.
+	if err := withPermissions("internal/checks/security/testdata/encrypted-allow-access.pdf",
+		true); err != nil {
+		return err
+	}
+	if err := withPermissions("internal/checks/security/testdata/encrypted-block-access.pdf",
+		false); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -855,6 +1003,674 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withOCG adds an Optional Content Group to the catalog. When name is
+// non-empty, the OCG carries /Name; otherwise /Name is omitted -- the
+// MH-20-001 failure pattern.
+func withOCG(dst, name string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	ocg := types.Dict{
+		"Type": types.Name("OCG"),
+	}
+	if name != "" {
+		ocg["Name"] = types.StringLiteral(name)
+	}
+	ocgRef, err := xrt.IndRefForNewObject(ocg)
+	if err != nil {
+		return err
+	}
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["OCProperties"] = types.Dict{
+		"OCGs": types.Array{*ocgRef},
+		"D":    types.Dict{"Order": types.Array{*ocgRef}},
+	}
+	return writeAndLog(ctx, dst)
+}
+
+// withOutlines produces a multi-page PDF whose page count exceeds the
+// MH-27-001 threshold (21). When withTree is true, the catalog carries
+// an /Outlines dictionary with one /First entry; otherwise the entry
+// is omitted -- the failing path.
+func withOutlines(dst string, pageCount int, withTree bool) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	if err := extendPages(xrt, pageCount); err != nil {
+		return err
+	}
+	if withTree {
+		cat, err := xrt.Catalog()
+		if err != nil {
+			return err
+		}
+		outline := types.Dict{
+			"Type":  types.Name("Outline"),
+			"Title": types.StringLiteral("Top"),
+		}
+		outlineRef, err := xrt.IndRefForNewObject(outline)
+		if err != nil {
+			return err
+		}
+		outlines := types.Dict{
+			"Type":  types.Name("Outlines"),
+			"First": *outlineRef,
+			"Last":  *outlineRef,
+			"Count": types.Integer(1),
+		}
+		outlinesRef, err := xrt.IndRefForNewObject(outlines)
+		if err != nil {
+			return err
+		}
+		outline["Parent"] = *outlinesRef
+		cat["Outlines"] = *outlinesRef
+	}
+	return writeAndLog(ctx, dst)
+}
+
+// extendPages grows the page tree to total pages by appending fresh
+// Page dicts that mirror the base page's MediaBox. The /Pages /Count
+// is updated to match. Used by the Outlines fixture to clear the
+// page-count threshold MH-27-001 enforces.
+func extendPages(xrt *pdfmodel.XRefTable, total int) error {
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	for len(kids) < total {
+		page := types.Dict{
+			"Type":      types.Name("Page"),
+			"Parent":    *pagesRef,
+			"MediaBox":  types.Array{types.Integer(0), types.Integer(0), types.Integer(612), types.Integer(792)},
+			"Resources": types.Dict{},
+		}
+		ref, err := xrt.IndRefForNewObject(page)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *ref)
+	}
+	pagesDict["Kids"] = kids
+	pagesDict["Count"] = types.Integer(len(kids))
+	return nil
+}
+
+// withTabs sets /Tabs on the first page to tabs ("S", "R", "C").
+// MH-08-001 passes only on "S".
+func withTabs(dst, tabs string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	pageDict, err := xrt.DereferenceDict(kids[0])
+	if err != nil {
+		return err
+	}
+	pageDict["Tabs"] = types.Name(tabs)
+	return writeAndLog(ctx, dst)
+}
+
+// withPermissions writes the base PDF, then re-encrypts it with
+// pdfcpu's standard security handler. allowAccess toggles the PDF/UA
+// accessibility bit (/P bit 10). When false, every permission is
+// cleared so the resulting fixture exercises the MH-26-001 failure
+// path. Encryption uses an empty user password (pdfdisassembler opens
+// such documents without prompting) and a fixed owner password.
+func withPermissions(dst string, allowAccess bool) error {
+	// pdfcpu's EncryptFile reads from inFile, so we first materialise a
+	// fresh copy of the base PDF at dst and then encrypt it in place.
+	if err := copyBase(dst); err != nil {
+		return err
+	}
+	conf := pdfmodel.NewDefaultConfiguration()
+	conf.UserPW = ""
+	conf.OwnerPW = "owner"
+	if allowAccess {
+		conf.Permissions = pdfmodel.PermissionsAll
+	} else {
+		conf.Permissions = pdfmodel.PermissionsNone
+	}
+	if err := api.EncryptFile(dst, dst, conf); err != nil {
+		return err
+	}
+	fmt.Println("encrypted", dst)
+	return nil
+}
+
+// withMixedHeadings builds Document → [headingTypes...] where each
+// entry is an explicit structure type like "H", "H1", "H2". Used by
+// MH-14-006 to assemble both the pure-/H<n> fixture and the mixed
+// /H + /H<n> failure fixture.
+func withMixedHeadings(dst string, headingTypes []string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	var kids types.Array
+	for _, t := range headingTypes {
+		h := types.Dict{
+			"Type": types.Name("StructElem"),
+			"S":    types.Name(t),
+			"P":    *docRef,
+			"Pg":   pageRef,
+		}
+		hRef, err := xrt.IndRefForNewObject(h)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *hRef)
+	}
+	docElem["K"] = kids
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
+}
+
+// withFormula derives a tagged PDF whose structure tree contains a
+// single Formula StructElem. Non-empty alt produces an /Alt entry;
+// empty alt omits both /Alt and /ActualText -- the MH-17-001 failure
+// pattern. Mirrors withFigure for the Figure check.
+func withFormula(dst, alt string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	formula := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Formula"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	if alt != "" {
+		formula["Alt"] = types.StringLiteral(alt)
+	}
+	formulaRef, err := xrt.IndRefForNewObject(formula)
+	if err != nil {
+		return err
+	}
+	docElem["K"] = *formulaRef
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
+}
+
+// withTitleAgreement writes a PDF that carries BOTH a DocumentInfo
+// /Title and an XMP dc:title. The two strings can be equal (the
+// MH-06-005 passing case) or distinct (the failing case). Implemented
+// as a single pass over the base PDF -- using AddPropertiesFile +
+// withMetadataStream sequentially would not stack because each builder
+// reads from basePath, not from the previous step's output.
+func withTitleAgreement(dst, infoTitle, xmpTitle string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+
+	// DocumentInfo /Title: create an /Info dict and link it from the
+	// trailer; that is how pdfcpu materialises subsequent /Title
+	// lookups via DocInfo().
+	infoDict := types.Dict{"Title": types.StringLiteral(infoTitle)}
+	infoRef, err := xrt.IndRefForNewObject(infoDict)
+	if err != nil {
+		return err
+	}
+	xrt.Info = infoRef
+
+	// XMP dc:title -- build the same UA1+dc:title packet shape used by
+	// the with-xmp-title fixture, but with the requested title text
+	// substituted in.
+	xmp := `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/"
+        xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <pdfuaid:part>1</pdfuaid:part>
+      <dc:title>
+        <rdf:Alt>
+          <rdf:li xml:lang="x-default">` + xmpTitle + `</rdf:li>
+        </rdf:Alt>
+      </dc:title>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`
+	sd := types.StreamDict{
+		Dict: types.Dict{
+			"Type":    types.Name("Metadata"),
+			"Subtype": types.Name("XML"),
+		},
+		Content: []byte(xmp),
+	}
+	if err := sd.Encode(); err != nil {
+		return err
+	}
+	mdRef, err := xrt.IndRefForNewObject(sd)
+	if err != nil {
+		return err
+	}
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["Metadata"] = *mdRef
+	return writeAndLog(ctx, dst)
+}
+
+// withTableRow builds a tagged PDF whose structure tree is Document →
+// Table → TR → [rowChildTypes...]. MH-15-004 fails when a TR carries a
+// non-cell child (anything other than TH or TD); the fixture varies
+// only the rowChildTypes vector.
+func withTableRow(dst string, rowChildTypes []string) error {
+	return withTablePattern(dst, rowChildTypes, nil)
+}
+
+// withTableHeader builds Document → Table → TR → TH. When scope is
+// non-empty, the TH carries /A << /O /Table /Scope <scope> >>. With
+// scope == "" the /A entry is omitted entirely -- the MH-15-005
+// failure pattern.
+func withTableHeader(dst, scope string) error {
+	var attr types.Dict
+	if scope != "" {
+		attr = types.Dict{
+			"O":     types.Name("Table"),
+			"Scope": types.Name(scope),
+		}
+	}
+	return withTablePattern(dst, []string{"TH"}, map[int]types.Dict{0: attr})
+}
+
+// withTablePattern is the shared builder for the table-related
+// fixtures. It writes Document → Table → TR → [rowChildTypes...] and
+// attaches the per-index /A attribute dict from childAttrs (nil entries
+// produce a bare StructElem).
+func withTablePattern(dst string, rowChildTypes []string, childAttrs map[int]types.Dict) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	tableElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Table"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	tableRef, err := xrt.IndRefForNewObject(tableElem)
+	if err != nil {
+		return err
+	}
+	trElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("TR"),
+		"P":    *tableRef,
+		"Pg":   pageRef,
+	}
+	trRef, err := xrt.IndRefForNewObject(trElem)
+	if err != nil {
+		return err
+	}
+
+	var kids types.Array
+	for i, t := range rowChildTypes {
+		child := types.Dict{
+			"Type": types.Name("StructElem"),
+			"S":    types.Name(t),
+			"P":    *trRef,
+			"Pg":   pageRef,
+		}
+		if attr, ok := childAttrs[i]; ok && attr != nil {
+			child["A"] = attr
+		}
+		ref, err := xrt.IndRefForNewObject(child)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *ref)
+	}
+	trElem["K"] = kids
+	tableElem["K"] = *trRef
+	docElem["K"] = *tableRef
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
+}
+
+// withListItem builds Document → L → LI → [itemChildTypes...]. MH-16-002
+// fails when the LI has no LBody among its direct children.
+func withListItem(dst string, itemChildTypes []string) error {
+	return withListPattern(dst, "", itemChildTypes)
+}
+
+// withListNumbering builds Document → L → LI → LBody and sets
+// /A << /O /List /ListNumbering <numbering> >> on the L when numbering
+// is non-empty. The empty case omits /A -- the MH-16-003 warning
+// pattern.
+func withListNumbering(dst, numbering string) error {
+	return withListPattern(dst, numbering, []string{"LBody"})
+}
+
+// withListPattern is the shared builder for the list-related fixtures.
+// It writes Document → L → LI → [itemChildTypes...] and, when
+// numbering is non-empty, attaches /A on the L with /ListNumbering.
+func withListPattern(dst, numbering string, itemChildTypes []string) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	lElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("L"),
+		"P":    *docRef,
+		"Pg":   pageRef,
+	}
+	if numbering != "" {
+		lElem["A"] = types.Dict{
+			"O":             types.Name("List"),
+			"ListNumbering": types.Name(numbering),
+		}
+	}
+	lRef, err := xrt.IndRefForNewObject(lElem)
+	if err != nil {
+		return err
+	}
+	liElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("LI"),
+		"P":    *lRef,
+		"Pg":   pageRef,
+	}
+	liRef, err := xrt.IndRefForNewObject(liElem)
+	if err != nil {
+		return err
+	}
+
+	var kids types.Array
+	for _, t := range itemChildTypes {
+		child := types.Dict{
+			"Type": types.Name("StructElem"),
+			"S":    types.Name(t),
+			"P":    *liRef,
+			"Pg":   pageRef,
+		}
+		ref, err := xrt.IndRefForNewObject(child)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *ref)
+	}
+	liElem["K"] = kids
+	lElem["K"] = *liRef
+	docElem["K"] = *lRef
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+	return writeAndLog(ctx, dst)
+}
+
+// withAnnotation attaches a single annotation dict to the first page's
+// /Annots array. Used by the per-subtype wrappers below; the base PDF
+// itself carries no annotations, so the resulting fixture exposes
+// exactly one annotation to the MH-28 walker.
+func withAnnotation(dst string, annot types.Dict) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	annotRef, err := xrt.IndRefForNewObject(annot)
+	if err != nil {
+		return err
+	}
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	pageDict, err := xrt.DereferenceDict(kids[0])
+	if err != nil {
+		return err
+	}
+	pageDict["Annots"] = types.Array{*annotRef}
+	return writeAndLog(ctx, dst)
+}
+
+// onPageRect returns a /Rect that sits well inside the blank base PDF's
+// 612×792 MediaBox. Used wherever the geometry does not matter and we
+// just need the annotation to count as on-page.
+func onPageRect() types.Array {
+	return types.Array{types.Integer(100), types.Integer(100), types.Integer(200), types.Integer(200)}
+}
+
+// withLinkAnnotation builds a Link annotation. When contents is
+// non-empty, the annotation carries /Contents; otherwise the entry is
+// omitted -- the MH-28-001 failure pattern.
+func withLinkAnnotation(dst, contents string) error {
+	annot := types.Dict{
+		"Type":    types.Name("Annot"),
+		"Subtype": types.Name("Link"),
+		"Rect":    onPageRect(),
+	}
+	if contents != "" {
+		annot["Contents"] = types.StringLiteral(contents)
+	}
+	return withAnnotation(dst, annot)
+}
+
+// withWidgetAnnotation builds a Widget (form field) annotation. When
+// tooltip is non-empty the widget carries /TU; otherwise no tooltip is
+// set anywhere -- the MH-28-003 failure pattern.
+func withWidgetAnnotation(dst, tooltip string) error {
+	annot := types.Dict{
+		"Type":    types.Name("Annot"),
+		"Subtype": types.Name("Widget"),
+		"FT":      types.Name("Tx"),
+		"Rect":    onPageRect(),
+	}
+	if tooltip != "" {
+		annot["TU"] = types.StringLiteral(tooltip)
+	}
+	return withAnnotation(dst, annot)
+}
+
+// withTextAnnotation builds a Text (sticky-note) annotation, which is
+// structure-tree-eligible. withStructParent toggles /StructParent --
+// the MH-28-004 hinge.
+func withTextAnnotation(dst string, withStructParent bool) error {
+	annot := types.Dict{
+		"Type":     types.Name("Annot"),
+		"Subtype":  types.Name("Text"),
+		"Rect":     onPageRect(),
+		"Contents": types.StringLiteral("comment"),
+	}
+	if withStructParent {
+		annot["StructParent"] = types.Integer(0)
+	}
+	return withAnnotation(dst, annot)
+}
+
+// withArtifactAnnotation builds a page-furniture annotation (Watermark,
+// PrinterMark, TrapNet). withStructParent toggles /StructParent -- the
+// MH-28-006 hinge: artifact subtypes must NOT carry one.
+func withArtifactAnnotation(dst, subtype string, withStructParent bool) error {
+	annot := types.Dict{
+		"Type":    types.Name("Annot"),
+		"Subtype": types.Name(subtype),
+		"Rect":    onPageRect(),
+	}
+	if withStructParent {
+		annot["StructParent"] = types.Integer(0)
+	}
+	return withAnnotation(dst, annot)
+}
+
+// withOffPageAnnotation builds a Text annotation whose /Rect sits well
+// outside the 612×792 MediaBox. hidden toggles the /F Hidden bit (2);
+// without it MH-28-008 fires. /StructParent is set so MH-28-004 stays
+// silent and the fixture isolates the off-page concern.
+func withOffPageAnnotation(dst string, hidden bool) error {
+	annot := types.Dict{
+		"Type":         types.Name("Annot"),
+		"Subtype":      types.Name("Text"),
+		"Rect":         types.Array{types.Integer(2000), types.Integer(2000), types.Integer(2100), types.Integer(2100)},
+		"Contents":     types.StringLiteral("off-page"),
+		"StructParent": types.Integer(0),
+	}
+	if hidden {
+		annot["F"] = types.Integer(2)
+	}
+	return withAnnotation(dst, annot)
 }
 
 // chdirRepoRoot walks up from the current working directory to find the
