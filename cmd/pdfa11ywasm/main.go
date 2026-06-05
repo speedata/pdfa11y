@@ -20,10 +20,13 @@ import (
 	"github.com/speedata/pdfa11y/internal/report/html"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=...".
+var Version = "dev"
+
 func main() {
 	js.Global().Set("pdfa11y", js.ValueOf(map[string]any{
 		"check":   js.FuncOf(check),
-		"version": js.ValueOf("dev"),
+		"version": js.ValueOf(Version),
 	}))
 
 	// syscall/js requires the program to stay alive so JS can invoke

@@ -19,17 +19,22 @@ import (
 	"github.com/speedata/pdfa11y/internal/report/terminal"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=...".
+// The default "dev" applies to `go run` / `go build` without ldflags.
+var Version = "dev"
+
 func main() {
 	os.Exit(run())
 }
 
 func run() int {
 	var (
-		format   = "terminal"
-		specFlag = "auto"
-		showWCAG bool
-		listOnly bool
-		strict   bool
+		format      = "terminal"
+		specFlag    = "auto"
+		showWCAG    bool
+		listOnly    bool
+		strict      bool
+		showVersion bool
 	)
 
 	op := optionparser.NewOptionParser()
@@ -39,6 +44,7 @@ func run() int {
 	op.On("--wcag", "show WCAG mapping in the report", &showWCAG)
 	op.On("--strict", "treat warnings as errors (affects verdict and exit code)", &strict)
 	op.On("--list-rules", "list registered checks and exit", &listOnly)
+	op.On("--version", "print version and exit", &showVersion)
 
 	if err := op.Parse(); err != nil {
 		if errors.Is(err, optionparser.ErrHelp) {
@@ -46,6 +52,11 @@ func run() int {
 		}
 		fmt.Fprintln(os.Stderr, "pdfa11y:", err)
 		return 2
+	}
+
+	if showVersion {
+		fmt.Println("pdfa11y", Version)
+		return 0
 	}
 
 	if listOnly {

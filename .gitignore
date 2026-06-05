@@ -19,3 +19,6 @@ go.work.sum
 
 # WASM build artefacts
 /web/pdfa11y.wasm
+
+# Local rake distribution tasks (dist.rake holds personal signing identities)
+/rakelib/
