@@ -65,6 +65,14 @@ type Document interface {
 	// all (the common case for documents without layers).
 	OptionalContentGroups() ([]OptionalContentGroup, error)
 
+	// AcroFormFields walks /AcroForm/Fields and returns one entry per
+	// terminal Widget annotation reachable through the field
+	// hierarchy. Abstract fields (no widget anywhere below them) are
+	// not surfaced because they carry no UI surface to link to the
+	// structure tree. Returns an empty slice with no error when the
+	// document has no /AcroForm or no /Fields.
+	AcroFormFields() ([]AcroFormField, error)
+
 	// Encryption reports the document's security handler state in
 	// the subset needed by the MH-26 family of checks. For an
 	// unencrypted document the zero value (Encrypted=false) is
@@ -72,6 +80,22 @@ type Document interface {
 	// meaningless. For an encrypted document the flags reflect the
 	// permission bits actually granted by /P.
 	Encryption() EncryptionInfo
+}
+
+// AcroFormField is a value snapshot of one terminal Widget annotation
+// reached through a recursive walk of /AcroForm/Fields. Used by
+// MH-28-007 to cross-check that every form field surfaced in the
+// interactive layer is also referenced from the structure tree.
+type AcroFormField struct {
+	// FullName is the field's fully-qualified name: the local /T of
+	// every ancestor (and self) joined by ".". Empty when nothing
+	// along the chain declared /T.
+	FullName string
+
+	// StructParent is the value of /StructParent on the widget. -1
+	// when the widget has no /StructParent at all -- the MH-28-007
+	// failure pattern.
+	StructParent int
 }
 
 // OptionalContentGroup is a value snapshot of one OCG (PDF layer)

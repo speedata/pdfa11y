@@ -319,6 +319,16 @@ func run() error {
 		false); err != nil {
 		return err
 	}
+
+	// MH-28-007: AcroForm widget linked from the structure tree.
+	if err := withAcroFormField("internal/checks/annotations/testdata/acroform-linked.pdf",
+		true); err != nil {
+		return err
+	}
+	if err := withAcroFormField("internal/checks/annotations/testdata/acroform-orphan.pdf",
+		false); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1003,6 +1013,60 @@ func writeBlankPDF(dst string) error {
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	return os.WriteFile(dst, buf.Bytes(), 0o644)
+}
+
+// withAcroFormField attaches a single AcroForm field whose merged
+// widget annotation sits on the first page. When linked is true the
+// widget carries /StructParent (the MH-28-007 passing case);
+// otherwise /StructParent is omitted -- the failure pattern. The
+// fixture also wires the widget into the page's /Annots so it looks
+// like a realistic form field rather than an orphan AcroForm entry.
+func withAcroFormField(dst string, linked bool) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+	pagesRef, err := xrt.Pages()
+	if err != nil {
+		return err
+	}
+	pagesDict, err := xrt.DereferenceDict(*pagesRef)
+	if err != nil {
+		return err
+	}
+	kids, _ := pagesDict["Kids"].(types.Array)
+	pageDict, err := xrt.DereferenceDict(kids[0])
+	if err != nil {
+		return err
+	}
+
+	widget := types.Dict{
+		"Type":    types.Name("Annot"),
+		"Subtype": types.Name("Widget"),
+		"FT":      types.Name("Tx"),
+		"T":       types.StringLiteral("name"),
+		"TU":      types.StringLiteral("Full name"),
+		"Rect":    types.Array{types.Integer(100), types.Integer(100), types.Integer(200), types.Integer(120)},
+		"P":       kids[0],
+	}
+	if linked {
+		widget["StructParent"] = types.Integer(0)
+	}
+	widgetRef, err := xrt.IndRefForNewObject(widget)
+	if err != nil {
+		return err
+	}
+	pageDict["Annots"] = types.Array{*widgetRef}
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["AcroForm"] = types.Dict{
+		"Fields": types.Array{*widgetRef},
+	}
+	return writeAndLog(ctx, dst)
 }
 
 // withOCG adds an Optional Content Group to the catalog. When name is
