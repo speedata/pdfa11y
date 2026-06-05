@@ -51,6 +51,53 @@ type Document interface {
 	// resolved from the page tree at load time. Cheap to call
 	// repeatedly; does not require content-stream walking.
 	PageCount() int
+
+	// Annotations returns one Annotation per /Annots entry across
+	// every page, in page order, with the fields needed by the
+	// MH-28 family of checks already resolved (Subtype, Contents,
+	// Tooltip via /Parent chain, /StructParent, /F flags). Backends
+	// without annotation support return an empty slice with no error.
+	Annotations() ([]Annotation, error)
+}
+
+// Annotation is a value snapshot of a single page annotation.
+// Subtype-specific fields irrelevant to accessibility checks (Rect,
+// Border, AP appearance streams, …) are intentionally not exposed.
+type Annotation struct {
+	// Page is the 1-based number of the page on which the
+	// annotation lives.
+	Page int
+
+	// Subtype is the value of /Subtype: "Link", "Widget", "Text",
+	// "FreeText", "Highlight", "Stamp", "Popup", "PrinterMark", …
+	Subtype string
+
+	// Contents is the value of /Contents, the canonical AT-readable
+	// text for the annotation. Decoded through the PDF text-string
+	// convention (PDFDocEncoding / UTF-16BE / UTF-8 BOM).
+	Contents string
+
+	// Tooltip is the value of /TU resolved with /Parent inheritance
+	// (form fields express the tooltip on the field dict, not the
+	// individual widget). Empty when no /TU is present anywhere up
+	// the chain.
+	Tooltip string
+
+	// StructParent is the value of /StructParent (the ParentTree
+	// key linking this annotation to its parent structure element).
+	// -1 when the annotation has no /StructParent at all.
+	StructParent int
+
+	// Hidden is true when bit 2 of /F (Annotation flags) is set:
+	// the annotation is suppressed from display and printing. Such
+	// annotations are not user-visible and should not be expected
+	// to participate in accessibility surfaces.
+	Hidden bool
+
+	// NoView is true when bit 5 of /F is set: the annotation is
+	// printed but not shown on screen. Treated like Hidden for
+	// accessibility purposes (no AT surface).
+	NoView bool
 }
 
 // PageReport bundles the content-stream facts about a single page.

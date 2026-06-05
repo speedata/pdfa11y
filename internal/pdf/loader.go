@@ -48,11 +48,13 @@ func LoadFile(path string) (model.Document, error) {
 
 // document is the pdfdisassembler-backed implementation of model.Document.
 type document struct {
-	r           *pdd.Reader
-	closer      io.Closer
-	roleMap     map[string]string     // populated by loadRoleMap; may be empty
-	pageIndex   map[pdd.Reference]int // page-ref -> 1-based page number
-	pageReports []model.PageReport    // cached result of Pages(); nil until first call
+	r                 *pdd.Reader
+	closer            io.Closer
+	roleMap           map[string]string     // populated by loadRoleMap; may be empty
+	pageIndex         map[pdd.Reference]int // page-ref -> 1-based page number
+	pageReports       []model.PageReport    // cached result of Pages(); nil until first call
+	annotations       []model.Annotation    // cached result of Annotations()
+	annotationsLoaded bool                  // tracks Annotations() cache (nil-slice is a valid value)
 }
 
 // loadRoleMap reads StructTreeRoot/RoleMap and caches custom-to-standard
