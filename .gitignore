@@ -20,5 +20,9 @@ go.work.sum
 # WASM build artefacts
 /web/pdfa11y.wasm
 
+# Generated CSS + locally-sourced in-house font
+/web/style.css
+/web/fonts/
+
 # Local rake distribution tasks (dist.rake holds personal signing identities)
 /rakelib/

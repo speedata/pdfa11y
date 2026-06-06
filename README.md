@@ -8,9 +8,6 @@ JSON, so it can drive both interactive review and batch / CI gates.
 It targets the gap left by [PAC](https://pac.pdf-accessibility.org/en),
 which is the de-facto standard for PDF/UA verification but is GUI-only.
 
-A browser-based version of the same checker runs at
-[pdfuacheck.speedata.de](https://pdfuacheck.speedata.de). The check runs
-locally in the browser (WebAssembly); the PDF never leaves the machine.
 
 ## Status
 
@@ -25,8 +22,7 @@ against the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-a
 false positives -- divergences from PAC are stricter findings or
 Matterhorn human checks that need a person in the loop.
 
-Run `pdfa11y --list-rules` (or open the [live frontend](https://pdfuacheck.speedata.de))
-for the current, build-specific list of registered checks.
+Run `pdfa11y --list-rules` for the current, build-specific list of registered checks.
 
 Still missing: annotation / form-field checks, font-glyph-level
 encoding analysis, reading-order heuristics. See [Roadmap](#roadmap).
@@ -79,10 +75,7 @@ into the exit code accordingly.
 ## Implemented checks
 
 `pdfa11y --list-rules` prints the authoritative, version-specific
-list with IDs, titles, severities and WCAG mappings. The
-[live frontend](https://pdfuacheck.speedata.de) renders the same
-list from the loaded WebAssembly module under "What is and is not
-checked".
+list with IDs, titles, severities and WCAG mappings.
 
 The check set currently spans these Matterhorn categories:
 
@@ -134,7 +127,6 @@ names being kept backwards-compatible.
 
 ```
 cmd/pdfa11y/        CLI (optionparser)
-cmd/pdfa11ywasm/    WebAssembly entry point (drives pdfuacheck.speedata.de)
 cmd/genfixtures/    Fixture regenerator
 internal/engine/    Check interface, registry, runner, Verdict
 internal/model/     Document/Dict/StructElement/Font/PageReport interfaces
@@ -144,7 +136,6 @@ internal/pdfua/     Shared helpers for the PDF/UA XMP identifier
 internal/checks/    Individual checks, one Matterhorn category per package
 internal/report/    Output formatters (terminal, json, html)
 internal/realworld/ Cross-validation harness against the pdfa.org corpus
-web/                WASM frontend (HTML + JS + wasm_exec.js + pdfa11y.wasm)
 ```
 
 The parsing layer lives in a separate library,
