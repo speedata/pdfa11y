@@ -1,0 +1,251 @@
+@page {
+  size: A4;
+  margin: 22mm 20mm 22mm 20mm;
+
+  @bottom-left {
+    content: url("__LOGO_PATH__");
+    height: 12pt;
+    vertical-align: bottom;
+    margin-bottom: 5pt;
+  }
+  @bottom-center {
+    content: "https://pdfuacheck.speedata.de";
+    font-family: sans;
+    font-size: 8pt;
+    color: #6a6a6a;
+    vertical-align: bottom;
+    margin-bottom: 6pt;
+  }
+  @bottom-right {
+    content: "Page " counter(page);
+    font-family: sans;
+    font-size: 8pt;
+    color: #6a6a6a;
+    vertical-align: bottom;
+    margin-bottom: 6pt;
+  }
+}
+
+/* Title page (only first page of the whole PDF — csshtml has no named pages,
+   only :first/:left/:right). Multi-document batches show the footer on later
+   title pages, which is fine. */
+@page :first {
+  size: A4;
+  margin: 22mm 20mm 22mm 20mm;
+  @bottom-left   { content: ""; }
+  @bottom-center { content: ""; }
+  @bottom-right  { content: ""; }
+}
+
+
+body {
+  font-family: sans;
+  font-size: 10pt;
+  color: #1f2328;
+  line-height: 1.45;
+}
+
+/* ─────────────  Title page  ───────────── */
+
+.title-page {
+  page-break-after: always;
+  padding-top: 30mm;
+}
+
+.title-page .eyebrow {
+  font-family: monospace;
+  font-size: 9pt;
+  color: #6a6a6a;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin: 0 0 6pt 0;
+}
+
+.title-page h1 {
+  font-size: 28pt;
+  font-weight: 700;
+  margin: 0 0 4pt 0;
+  letter-spacing: -.01em;
+  color: #1f2328;
+}
+
+.title-page .subtitle {
+  font-size: 12pt;
+  color: #6a6a6a;
+  margin: 0 0 24pt 0;
+}
+
+.title-page .filename {
+  font-family: monospace;
+  font-size: 11pt;
+  color: #1f2328;
+  margin: 0 0 22pt 0;
+  word-break: break-all;
+}
+
+.verdict-block {
+  margin: 14pt 0 22pt 0;
+  padding: 14pt 18pt;
+  border-radius: 4pt;
+  color: #ffffff;
+  text-align: center;
+}
+.verdict-block .verdict-label {
+  font-size: 10pt;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .85;
+  margin: 0 0 4pt 0;
+}
+.verdict-block .verdict-value {
+  font-size: 26pt;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin: 0;
+}
+.verdict-pass { background-color: #16a34a; }
+.verdict-warn { background-color: #f5b800; color: #1f2328; }
+.verdict-fail { background-color: #dc2626; }
+
+.stats {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 28pt 0;
+}
+.stats td {
+  padding: 6pt 0;
+  border-bottom: 0.5pt solid #e5e5e5;
+  font-size: 11pt;
+  vertical-align: baseline;
+}
+.stats td.num {
+  text-align: right;
+  font-weight: 700;
+  font-family: monospace;
+  width: 25%;
+  color: #1f2328;
+  padding-right: 8pt;
+}
+.stats td.label {
+  color: #6a6a6a;
+  padding-left: 8pt;
+}
+
+.title-page .meta {
+  font-size: 9pt;
+  color: #6a6a6a;
+  margin-top: 48pt;
+  border-top: 0.5pt solid #e5e5e5;
+  padding-top: 8pt;
+}
+
+/* ─────────────  Report pages  ───────────── */
+
+.report-page {
+  page-break-before: always;
+}
+
+.report-page h2 {
+  font-size: 16pt;
+  margin: 0 0 4pt 0;
+  letter-spacing: -.005em;
+}
+
+.report-page .filename-line {
+  font-family: monospace;
+  font-size: 9pt;
+  color: #6a6a6a;
+  margin: 0 0 18pt 0;
+  word-break: break-all;
+}
+
+.category {
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #6a6a6a;
+  margin: 18pt 0 6pt 0;
+  font-weight: 700;
+  padding-bottom: 2pt;
+  border-bottom: 0.5pt solid #e5e5e5;
+  page-break-after: avoid;
+}
+
+.check {
+  margin: 8pt 0 0 0;
+  padding: 0 0 8pt 0;
+  border-bottom: 0.5pt solid #f0f0f0;
+}
+
+.check-head {
+  margin: 0;
+  font-size: 10pt;
+}
+
+.state {
+  display: inline-block;
+  padding: 1pt 5pt;
+  border-radius: 2pt;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: .05em;
+  margin-right: 6pt;
+  color: #ffffff;
+  vertical-align: middle;
+}
+.state-pass { background-color: #16a34a; }
+.state-warn { background-color: #f5b800; color: #1f2328; }
+.state-fail { background-color: #dc2626; }
+.state-na   { background-color: #c8c8c8; color: #1f2328; }
+
+.check-id {
+  font-family: monospace;
+  font-size: 9pt;
+  color: #6a6a6a;
+  margin-right: 4pt;
+}
+
+.check-title {
+  font-weight: 600;
+  color: #1f2328;
+}
+
+.check-na .check-title { font-weight: 400; color: #6a6a6a; font-style: italic; }
+
+.description {
+  font-size: 9pt;
+  color: #6a6a6a;
+  margin: 3pt 0 0 0;
+  line-height: 1.4;
+}
+
+.finding {
+  margin: 6pt 0 0 12pt;
+  padding: 2pt 0 2pt 8pt;
+  border-left: 2pt solid #6a6a6a;
+}
+.severity-error   { border-left-color: #dc2626; }
+.severity-warning { border-left-color: #f5b800; }
+.severity-info    { border-left-color: #1664c0; }
+
+.finding-msg {
+  margin: 0;
+  font-size: 9.5pt;
+}
+.severity-label {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 700;
+  margin-right: 4pt;
+}
+.severity-error   .severity-label { color: #dc2626; }
+.severity-warning .severity-label { color: #b8860b; }
+.severity-info    .severity-label { color: #1664c0; }
+
+.finding-loc, .finding-hint {
+  margin: 2pt 0 0 0;
+  font-size: 8.5pt;
+  color: #6a6a6a;
+}
+.finding-hint { font-style: italic; }

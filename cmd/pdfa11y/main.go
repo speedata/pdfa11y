@@ -16,6 +16,7 @@ import (
 	"github.com/speedata/pdfa11y/internal/pdfua"
 	"github.com/speedata/pdfa11y/internal/report/html"
 	jsonrep "github.com/speedata/pdfa11y/internal/report/json"
+	pdfrep "github.com/speedata/pdfa11y/internal/report/pdf"
 	"github.com/speedata/pdfa11y/internal/report/terminal"
 )
 
@@ -39,7 +40,7 @@ func run() int {
 
 	op := optionparser.NewOptionParser()
 	op.Banner = "Usage: pdfa11y [options] FILE [FILE ...]"
-	op.On("--format FORMAT", "output format: terminal (default), json, jsonl, html", &format)
+	op.On("--format FORMAT", "output format: terminal (default), json, jsonl, html, pdf", &format)
 	op.On("--spec SPEC", "PDF/UA spec: pdfua1, pdfua2, auto (default)", &specFlag)
 	op.On("--wcag", "show WCAG mapping in the report", &showWCAG)
 	op.On("--strict", "treat warnings as errors (affects verdict and exit code)", &strict)
@@ -76,16 +77,17 @@ func run() int {
 	}
 
 	switch format {
-	case "terminal", "json", "jsonl", "html":
+	case "terminal", "json", "jsonl", "html", "pdf":
 	default:
-		fmt.Fprintf(os.Stderr, "pdfa11y: unknown --format %q (use terminal, json, jsonl, html)\n", format)
+		fmt.Fprintf(os.Stderr, "pdfa11y: unknown --format %q (use terminal, json, jsonl, html, pdf)\n", format)
 		return 2
 	}
 
 	anyFail := false
 	anyError := false
-	var jsonDocs []jsonrep.Document // accumulated only for --format json
-	var htmlDocs []html.Document    // accumulated only for --format html
+	var jsonDocs []jsonrep.Document  // accumulated only for --format json
+	var htmlDocs []html.Document     // accumulated only for --format html
+	var pdfDocs []pdfrep.Document    // accumulated only for --format pdf
 
 	for _, path := range op.Extra {
 		doc, err := pdf.LoadFile(path)
@@ -113,6 +115,8 @@ func run() int {
 			jsonDocs = append(jsonDocs, jsonrep.Build(path, results))
 		case "html":
 			htmlDocs = append(htmlDocs, html.Build(path, results))
+		case "pdf":
+			pdfDocs = append(pdfDocs, pdfrep.Build(path, results))
 		}
 
 		if !engine.Summarize(results).Conforming() {
@@ -128,6 +132,12 @@ func run() int {
 	}
 	if format == "html" {
 		if err := html.Write(os.Stdout, htmlDocs); err != nil {
+			fmt.Fprintln(os.Stderr, "pdfa11y:", err)
+			return 2
+		}
+	}
+	if format == "pdf" {
+		if err := pdfrep.Write(os.Stdout, pdfDocs, pdfrep.WithVersion(Version)); err != nil {
 			fmt.Fprintln(os.Stderr, "pdfa11y:", err)
 			return 2
 		}

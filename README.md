@@ -1,4 +1,8 @@
+[![Explore in Constellation](https://img.shields.io/badge/Explore%20in-Constellation-blue)](https://constellation.speedata.de)
+
+
 # pdfa11y
+
 
 `pdfa11y` is an open-source command-line PDF/UA accessibility checker
 written in Go. It runs Matterhorn-protocol-style checks against PDF
@@ -207,6 +211,12 @@ Longer-term:
   walking is in place
 - WCAG-only filtering for documents that are not formally PDF/UA but
   should still satisfy WCAG-equivalent accessibility expectations
+
+## Ecosystem
+
+pdfa11y is part of a broader ecosystem of PDF, typesetting and publishing technologies.
+
+**[Explore the constellation →](https://constellation.speedata.de)**
 
 ## License
 
