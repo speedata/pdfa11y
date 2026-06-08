@@ -19,17 +19,19 @@ Several dozen checks across the Matterhorn schedules listed under
 [Implemented checks](#implemented-checks). Structure-tree walking
 with role-map resolution, font enumeration with /ToUnicode CMap
 parsing, XMP introspection, content-stream tokenisation (used
-fonts, MCID consistency, untagged content, per-font code coverage),
-annotation walking, and tri-state reporting are in place. Validated
-against the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
-(82 reference PDFs); current match rate is around 66%, with 0 known
+fonts, MCID consistency, untagged content, per-font code coverage,
+MCID bounding boxes for reading-order heuristics), annotation
+walking, and tri-state reporting are in place. Validated against
+the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
+(82 reference PDFs); current match rate is 72%, with 0 known
 false positives -- divergences from PAC are stricter findings or
 Matterhorn human checks that need a person in the loop.
 
 Run `pdfa11y --list-rules` for the current, build-specific list of registered checks.
 
-Still missing: annotation / form-field checks, font-glyph-level
-encoding analysis, reading-order heuristics. See [Roadmap](#roadmap).
+Still missing: font-glyph-level encoding analysis, finer-grained
+reading-order checks (within-tag MCID order, sidebar placement),
+parallel batch processing. See [Roadmap](#roadmap).
 
 ## Install
 
@@ -85,21 +87,23 @@ The check set currently spans these Matterhorn categories:
 
 | Schedule | Coverage |
 | --- | --- |
-| 01 Real content / Structure tree | MarkInfo, StructTreeRoot, MCID consistency, untagged content, custom-tag role-map |
+| 01 Real content / Structure tree | MarkInfo, StructTreeRoot, MCID consistency, untagged content, custom-tag role-map, reading-order heuristic (G4 family) |
 | 06 Metadata | DocInfo title, XMP `dc:title`, `pdfuaid:part`, title agreement |
 | 07 Viewer preferences | DisplayDocTitle |
 | 08 Tab order | `/Tabs` = S |
-| 09 Fonts | Embedding, `/ToUnicode` presence, `/ToUnicode` coverage |
-| 11 Natural language | Catalog `/Lang` |
+| 09 Fonts | Embedding, `/ToUnicode` presence + coverage, no Type 1 fonts in PDF/UA-2, CIDFontType2 `/CIDToGIDMap` |
+| 11 Natural language | Catalog `/Lang`, per-element `/Lang` coverage |
+| 12 Embedded files | Associated Files declare `/AFRelationship` |
 | 13 Graphics | Figure Alt / ActualText |
 | 14 Headings | Hierarchy, mixed H / Hn styles |
 | 15 Tables | Rows, TR child shape, TH `/Scope` |
 | 16 Lists | LI presence, LI / LBody, `/ListNumbering` |
 | 17 Math | Formula Alt / ActualText |
+| 19 Notes and references | Note `/ID` present, references resolve |
 | 20 Optional content | OCG `/Name` |
 | 26 Security | Encryption permits AT extraction |
 | 27 Navigation | Outlines on multi-page documents |
-| 28 Annotations and forms | Link `/Contents`, form `/TU`, struct-tree linkage, artifact subtypes, off-page hiding |
+| 28 Annotations and forms | Link `/Contents`, form `/TU`, struct-tree linkage, artifact subtypes, off-page hiding, AcroForm fields in structure tree |
 
 All checks apply to both PDF/UA-1 and PDF/UA-2. `--spec auto`
 (default) detects the spec per document via `pdfuaid:part` in the
@@ -121,6 +125,9 @@ stream, not fonts declared in `/Resources` and never used.
 - `jsonl`: JSON Lines, one compact document per line.
 - `html`: standalone HTML report card with the same content as the
   terminal output, colour-coded and printable.
+- `pdf`: PDF/UA-1 accessibility report (title page + per-document
+  findings, structurally tagged) rendered via boxesandglue/bagme.
+  The output PDF itself passes pdfa11y's own checks.
 
 The JSON schema is stable enough to consume from Go programs (the engine
 package exposes `MarshalJSON`/`UnmarshalJSON` for `Verdict`, `Spec` and
@@ -138,7 +145,7 @@ internal/pdf/       pdfdisassembler-backed implementation of the model,
                     incl. per-page content-stream walker
 internal/pdfua/     Shared helpers for the PDF/UA XMP identifier
 internal/checks/    Individual checks, one Matterhorn category per package
-internal/report/    Output formatters (terminal, json, html)
+internal/report/    Output formatters (terminal, json, html, pdf)
 internal/realworld/ Cross-validation harness against the pdfa.org corpus
 ```
 
@@ -195,20 +202,19 @@ therefore does not vendor them.
 ## Roadmap
 
 Short-term:
-- Annotation walker so link / form / widget checks can land (MH-28
-  family: links have `/Contents`, form fields have `/TU` tooltips)
-- Cell-level table rules: TR contains only TH/TD; TH declares /Scope
-- `/Lang` per structure element (companion to MH-11-001)
-- Outlines required on documents above a length threshold
 - Parallel batch processing (`--jobs N`)
-- GitHub Actions CI on PRs
+- Suppress / baseline file for CI (today every finding always
+  counts; a baseline lets teams adopt pdfa11y on an existing
+  corpus without flipping CI red on day one)
+- Reading-order: extend the heuristic past upward jumps and column
+  hops -- within-tag MCID ordering (G4_F02), CTM-aware bounding
+  boxes for multi-column layouts that shift the page coordinate
+  system (G4_F03)
 
 Longer-term:
 - Pragmatic glyph-analysis subset: parse the TrueType cmap of
   embedded fonts to distinguish mis-declared symbolic fonts from real
   Latin fonts, closing the F03-class divergence with PAC
-- Reading-order heuristics (MH-09 / G4 family) once annotation
-  walking is in place
 - WCAG-only filtering for documents that are not formally PDF/UA but
   should still satisfy WCAG-equivalent accessibility expectations
 
