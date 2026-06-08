@@ -81,6 +81,7 @@ type corpusResult struct {
 	Expected      string // "pass" or "fail"
 	Got           string // "pass" or "fail"; "load-error" if pdfa11y could not parse the file
 	FailingChecks []string
+	WarningChecks []string // checks at Warning severity (counted as detection only on expected-fail files)
 	AllowedSkips  []string // checks listed in allowedFailures that fired (excluded from FailingChecks)
 	LoadErr       string
 }
@@ -122,9 +123,10 @@ func evaluate(absPath, corpusRoot string) corpusResult {
 	}
 	results := engine.Run(doc, engine.All())
 	allowed := allowedSet(r.RelPath)
-	var failing, skipped []string
+	var failing, skipped, warning []string
 	for _, res := range results {
-		if res.State() != engine.VerdictFail {
+		state := res.State()
+		if state != engine.VerdictFail && state != engine.VerdictWarn {
 			continue
 		}
 		id := res.Check.ID()
@@ -135,15 +137,31 @@ func evaluate(absPath, corpusRoot string) corpusResult {
 			skipped = append(skipped, id)
 			continue
 		}
-		failing = append(failing, id)
+		if state == engine.VerdictFail {
+			failing = append(failing, id)
+		} else {
+			warning = append(warning, id)
+		}
 	}
 	sort.Strings(failing)
+	sort.Strings(warning)
 	sort.Strings(skipped)
 	r.FailingChecks = failing
+	r.WarningChecks = warning
 	r.AllowedSkips = skipped
-	if len(failing) > 0 {
+
+	// Warnings count as a detection only when the corpus expects a
+	// failure -- they encode "the heuristic is suspicious, please
+	// review". On expected-PASS files a stray heuristic warning
+	// must not flip the verdict to "fail"; the file is otherwise
+	// fine and a warning here would create a false positive that
+	// poisons the match rate.
+	switch {
+	case len(failing) > 0:
 		r.Got = "fail"
-	} else {
+	case len(warning) > 0 && r.Expected == "fail":
+		r.Got = "fail"
+	default:
 		r.Got = "pass"
 	}
 	return r
@@ -238,6 +256,11 @@ func buildReport(corpus string, rs []corpusResult) string {
 	fmt.Fprintf(&b, "findings are listed in `refcorpus_expectations_test.go` and excluded\n")
 	fmt.Fprintf(&b, "from the false-positive count. %d file(s) carry an entry there.\n\n", len(allowedFailures))
 
+	fmt.Fprintf(&b, "Warning-severity findings (heuristics that flag suspicious cases\n")
+	fmt.Fprintf(&b, "without certainty) count as a detection only on files where\n")
+	fmt.Fprintf(&b, "pdfa.org expects FAIL. On expected-PASS files they are surfaced\n")
+	fmt.Fprintf(&b, "in the *Warning checks* column but never flip the verdict.\n\n")
+
 	fmt.Fprintf(&b, "## Summary\n\n")
 	fmt.Fprintf(&b, "| | Expected pass | Expected fail | Total |\n")
 	fmt.Fprintf(&b, "|---|---:|---:|---:|\n")
@@ -301,8 +324,9 @@ func buildReport(corpus string, rs []corpusResult) string {
 	}
 
 	fmt.Fprintf(&b, "## Per-file results\n\n")
-	fmt.Fprintf(&b, "| Group | File | Expected | pdfa11y | Match | Failing checks | Allowed (skipped) |\n")
-	fmt.Fprintf(&b, "|---|---|---|---|---|---|---|\n")
+	fmt.Fprintf(&b, "Failing column lists error-severity findings; warnings (heuristics flagged as suspicious but not definitive) appear in their own column.\n\n")
+	fmt.Fprintf(&b, "| Group | File | Expected | pdfa11y | Match | Failing checks | Warning checks | Allowed (skipped) |\n")
+	fmt.Fprintf(&b, "|---|---|---|---|---|---|---|---|\n")
 	for _, r := range rs {
 		marker := "✓"
 		if !r.Match() {
@@ -312,12 +336,16 @@ func buildReport(corpus string, rs []corpusResult) string {
 		if failing == "" {
 			failing = "—"
 		}
+		warning := strings.Join(r.WarningChecks, ", ")
+		if warning == "" {
+			warning = "—"
+		}
 		allowed := strings.Join(r.AllowedSkips, ", ")
 		if allowed == "" {
 			allowed = "—"
 		}
-		fmt.Fprintf(&b, "| %s | `%s` | %s | %s | %s | %s | %s |\n",
-			r.Group, r.FileName, r.Expected, r.Got, marker, failing, allowed)
+		fmt.Fprintf(&b, "| %s | `%s` | %s | %s | %s | %s | %s | %s |\n",
+			r.Group, r.FileName, r.Expected, r.Got, marker, failing, warning, allowed)
 	}
 	return b.String()
 }

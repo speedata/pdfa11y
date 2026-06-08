@@ -35,6 +35,7 @@ func (d *document) Pages() ([]model.PageReport, error) {
 			StructTreeMCIDs: treeMCIDs[p.Ref],
 			Tabs:            p.Tabs,
 			FontCodes:       map[string]map[uint32]bool{},
+			MCIDBoxes:       map[int]model.Rect{},
 		}
 		if rep.StructTreeMCIDs == nil {
 			rep.StructTreeMCIDs = map[int]bool{}
@@ -146,6 +147,20 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 	mcDepth := 0
 	currentFontKey := ""
 	currentFontCodeBytes := 1 // 1-byte default for simple fonts
+
+	// Stack of MCIDs active on the marked-content stack. -1 entries are
+	// BMC frames or BDC frames without an /MCID property — text inside
+	// them is still tagged but contributes to no MCIDBox.
+	mcidStack := []int{}
+
+	// Text-state position tracking. We only track translation components
+	// (textX/textY for the text matrix, lineX/lineY for the line matrix)
+	// and ignore CTM scale/rotation and glyph-advance widths. Pragmatic
+	// approximation: good enough for reading-order heuristics that care
+	// about which MCID lives where on the page, not pixel-perfect bounds.
+	var textX, textY, lineX, lineY float64
+	inText := false
+
 	sc := contentstream.New(body)
 	for {
 		op, err := sc.Next()
@@ -156,17 +171,48 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 			return err
 		}
 		switch op.Operator {
-		case "BMC", "BDC":
+		case "BMC":
 			mcDepth++
-			if op.Operator == "BDC" {
-				if mcid, ok := extractMCID(op, p.Properties); ok {
-					rep.ContentMCIDs[mcid] = true
-				}
+			mcidStack = append(mcidStack, -1)
+		case "BDC":
+			mcDepth++
+			mcid, ok := extractMCID(op, p.Properties)
+			if ok {
+				rep.ContentMCIDs[mcid] = true
+				mcidStack = append(mcidStack, mcid)
+			} else {
+				mcidStack = append(mcidStack, -1)
 			}
 		case "EMC":
 			if mcDepth > 0 {
 				mcDepth--
 			}
+			if n := len(mcidStack); n > 0 {
+				mcidStack = mcidStack[:n-1]
+			}
+		case "BT":
+			inText = true
+			textX, textY, lineX, lineY = 0, 0, 0, 0
+		case "ET":
+			inText = false
+		case "Tm":
+			if inText && len(op.Operands) >= 6 {
+				e := numberOperand(op.Operands[4])
+				f := numberOperand(op.Operands[5])
+				textX, textY, lineX, lineY = e, f, e, f
+			}
+		case "Td", "TD":
+			if inText && len(op.Operands) >= 2 {
+				tx := numberOperand(op.Operands[0])
+				ty := numberOperand(op.Operands[1])
+				lineX += tx
+				lineY += ty
+				textX, textY = lineX, lineY
+			}
+		case "T*":
+			// Spec: T* is Td(0, -TL). We do not track TL, so this is a
+			// no-op for position tracking. Reading-order checks tolerate
+			// this — same-line content stays at the same Y.
 		case "Tf":
 			if len(op.Operands) >= 1 && op.Operands[0].Kind == contentstream.KindName {
 				key := op.Operands[0].Name
@@ -183,13 +229,38 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 			}
 		case "Tj", "'", `"`:
 			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, textArgBytes(op))
+			recordPos(rep, mcidStack, textX, textY)
 			recordIfUntagged(rep, op, mcDepth)
 		case "TJ":
 			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, tjArrayBytes(op))
+			recordPos(rep, mcidStack, textX, textY)
 			recordIfUntagged(rep, op, mcDepth)
 		default:
 			recordIfUntagged(rep, op, mcDepth)
 		}
+	}
+}
+
+// numberOperand returns the numeric value of an Operand, or 0 if it is
+// not a number-kind operand. Content-stream operators that take numeric
+// arguments are well-defined by the spec; non-number values here would
+// be a malformed stream and are silently treated as zero.
+func numberOperand(o contentstream.Operand) float64 {
+	if o.Kind == contentstream.KindNumber {
+		return o.Number
+	}
+	return 0
+}
+
+// recordPos extends the MCIDBox for every MCID currently on the
+// marked-content stack so nested tags (e.g. a Span inside a P) both
+// see the content. -1 sentinel frames are skipped.
+func recordPos(rep *model.PageReport, mcidStack []int, x, y float64) {
+	for _, mcid := range mcidStack {
+		if mcid < 0 {
+			continue
+		}
+		rep.MCIDBoxes[mcid] = rep.MCIDBoxes[mcid].Extend(x, y)
 	}
 }
 

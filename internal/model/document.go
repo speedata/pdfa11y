@@ -86,6 +86,40 @@ type Document interface {
 	// meaningless. For an encrypted document the flags reflect the
 	// permission bits actually granted by /P.
 	Encryption() EncryptionInfo
+
+	// StructTreeOrder linearises the structure tree depth-first into
+	// the sequence of MCID references it makes — the document's
+	// intended reading order. Each entry is one (page, MCID) leaf;
+	// non-MCID children (OBJR, nested structure elements without K)
+	// do not appear. Entries are in the order their leaves are
+	// reached during the DFS walk.
+	//
+	// Pages without /Pg inheritance and not naming /Pg directly emit
+	// Page = 0; checks should treat such entries as un-locatable and
+	// skip them.
+	StructTreeOrder() ([]ReadingOrderEntry, error)
+}
+
+// ReadingOrderEntry is one leaf of the structure-tree linearisation:
+// the (page, MCID) pair plus the chain of structure-element tags from
+// StructTreeRoot down to the leaf's parent. The combination with
+// PageReport.MCIDBoxes lets reading-order checks compare the intended
+// order against the geometric layout on each page.
+type ReadingOrderEntry struct {
+	// Page is the 1-based page number this MCID lives on, or 0 when
+	// no /Pg attribute resolves on the path from the root to this
+	// leaf.
+	Page int
+
+	// MCID is the marked-content identifier the structure tree
+	// claims on the page above.
+	MCID int
+
+	// StructPath is the slash-separated chain of structure-element
+	// tags from the root down to the immediate parent of this MCID
+	// (e.g. "Document/Sect/H1"). Empty when the path could not be
+	// determined.
+	StructPath string
 }
 
 // AssociatedFile is a value snapshot of one filespec entry reached
@@ -252,6 +286,56 @@ type PageReport struct {
 	//     Identity-H -- a proper implementation would walk the
 	//     encoded CMap, which is a future refinement.
 	FontCodes map[string]map[uint32]bool
+
+	// MCIDBoxes maps each MCID seen on this page to a bounding box
+	// in PDF user-space units (origin at the bottom-left of the page,
+	// Y growing up). The box is the axis-aligned hull of the text
+	// matrix start positions of every Tj/TJ/'/" emitted while that
+	// MCID was on the marked-content stack.
+	//
+	// Glyph widths and CTM scale/rotation are ignored: the box is a
+	// pragmatic approximation suitable for reading-order heuristics,
+	// not a pixel-perfect rendering of the content. Pages with no
+	// text-showing operators have an empty map.
+	MCIDBoxes map[int]Rect
+}
+
+// Rect is an axis-aligned rectangle in PDF user-space units. The PDF
+// coordinate system places the origin at the bottom-left of the page
+// with Y growing upwards, so visual top-to-bottom reading order
+// corresponds to MaxY descending.
+type Rect struct {
+	MinX, MinY, MaxX, MaxY float64
+}
+
+// Empty reports whether r has never been extended — i.e. it is the
+// zero value. A degenerate one-point rect (MinX == MaxX, MinY == MaxY)
+// is intentionally NOT empty: the walker records glyph start positions
+// without computing widths, so single-point rects are the normal
+// representation of "one Tj at this position".
+func (r Rect) Empty() bool {
+	return r == Rect{}
+}
+
+// Extend grows r to cover (x, y). The first point on a zero-value Rect
+// initialises both min and max corners to that point.
+func (r Rect) Extend(x, y float64) Rect {
+	if r == (Rect{}) {
+		return Rect{MinX: x, MinY: y, MaxX: x, MaxY: y}
+	}
+	if x < r.MinX {
+		r.MinX = x
+	}
+	if x > r.MaxX {
+		r.MaxX = x
+	}
+	if y < r.MinY {
+		r.MinY = y
+	}
+	if y > r.MaxY {
+		r.MaxY = y
+	}
+	return r
 }
 
 // UntaggedOp is one occurrence of a real-content operator running

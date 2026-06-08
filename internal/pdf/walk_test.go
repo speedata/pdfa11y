@@ -3,6 +3,7 @@ package pdf_test
 import (
 	"testing"
 
+	"github.com/speedata/pdfa11y/internal/model"
 	"github.com/speedata/pdfa11y/internal/pdf"
 )
 
@@ -61,4 +62,46 @@ func TestPagesMCIDsAlign(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestMCIDBoxes verifies that the walker emits a bounding box per
+// content-stream MCID, that the boxes are non-empty, and that the page
+// has more than one distinct Y so reading-order heuristics actually
+// have data to compare. The fixture is a real PDF/UA file with several
+// MCIDs across the page.
+func TestMCIDBoxes(t *testing.T) {
+	doc, err := pdf.LoadFile("../realworld/testdata/glu-pdfua-demo.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	pages, err := doc.Pages()
+	if err != nil {
+		t.Fatalf("pages: %v", err)
+	}
+	first := pages[0]
+	if len(first.MCIDBoxes) == 0 {
+		t.Fatalf("page 1: expected MCID boxes, got none")
+	}
+	for id := range first.ContentMCIDs {
+		box, ok := first.MCIDBoxes[id]
+		if !ok {
+			// MCIDs introduced by a BDC with no Tj/TJ inside (e.g. a
+			// pure Artifact wrapping a path) legitimately have no box.
+			continue
+		}
+		// Each tracked MCID must have a defined starting position.
+		if box == (model.Rect{}) {
+			t.Errorf("MCID %d has zero-value Rect — recordPos never fired", id)
+		}
+	}
+	// Reading-order heuristics need at least two distinct Y positions
+	// to be useful; a real multi-paragraph page should easily clear this.
+	seen := map[float64]bool{}
+	for _, b := range first.MCIDBoxes {
+		seen[b.MinY] = true
+	}
+	if len(seen) < 2 {
+		t.Errorf("page 1: expected >= 2 distinct MinY values across MCIDBoxes, got %d", len(seen))
+	}
+	t.Logf("page 1: %d MCIDBoxes across %d distinct Y positions", len(first.MCIDBoxes), len(seen))
 }

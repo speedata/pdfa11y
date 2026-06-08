@@ -383,6 +383,24 @@ func run() error {
 		""); err != nil {
 		return err
 	}
+
+	// MH-09-G4-001: reading order matches geometric layout.
+	if err := withReadingOrder("internal/checks/structure/testdata/reading-order-ok.pdf",
+		true); err != nil {
+		return err
+	}
+	if err := withReadingOrder("internal/checks/structure/testdata/reading-order-reversed.pdf",
+		false); err != nil {
+		return err
+	}
+	if err := withTwoColumnReadingOrder("internal/checks/structure/testdata/reading-order-two-col-ok.pdf",
+		[]int{0, 1, 2, 3}); err != nil {
+		return err
+	}
+	if err := withTwoColumnReadingOrder("internal/checks/structure/testdata/reading-order-two-col-hop.pdf",
+		[]int{0, 2, 1, 3}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -2245,6 +2263,278 @@ func withOffPageAnnotation(dst string, hidden bool) error {
 		annot["F"] = types.Integer(2)
 	}
 	return withAnnotation(dst, annot)
+}
+
+// withReadingOrder writes a tagged PDF with three /P structure
+// elements wrapping three text runs at three different Y positions.
+// All MCIDs are referenced from the struct tree in order 0 → 1 → 2.
+//
+// ordered=true puts MCID 0 at the top (Y=720), MCID 1 in the middle
+// (Y=600) and MCID 2 at the bottom (Y=400). The DFS sequence walks
+// downward — matches the visual layout, MH-09-G4-001 passes.
+//
+// ordered=false flips the geometry: MCID 0 at the bottom (Y=400),
+// MCID 1 in the middle (Y=600), MCID 2 at the top (Y=720). The DFS
+// sequence walks upward by 200pt and 120pt — MH-09-G4-001 should
+// fire at the first upward step (the 200pt jump exceeds the
+// 0.5 × block-height threshold; block height = 320pt).
+func withReadingOrder(dst string, ordered bool) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+
+	cmap := types.StreamDict{
+		Dict: types.Dict{},
+		Content: []byte("/CIDInit /ProcSet findresource begin\n" +
+			"12 dict begin\nbegincmap\n/CIDSystemInfo <</Registry(Adobe)/Ordering(UCS)/Supplement 0>> def\n" +
+			"/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n" +
+			"1 begincodespacerange <00> <ff> endcodespacerange\n" +
+			"3 beginbfchar <41> <0041> <42> <0042> <43> <0043> endbfchar\n" +
+			"endcmap CMapName currentdict /CMap defineresource pop end end\n"),
+	}
+	if err := cmap.Encode(); err != nil {
+		return err
+	}
+	cmapRef, err := xrt.IndRefForNewObject(cmap)
+	if err != nil {
+		return err
+	}
+	font := types.Dict{
+		"Type":      types.Name("Font"),
+		"Subtype":   types.Name("TrueType"),
+		"BaseFont":  types.Name("PDFA11YReadingOrder"),
+		"FirstChar": types.Integer(32),
+		"LastChar":  types.Integer(122),
+		"Widths":    types.Array{types.Integer(500)},
+		"ToUnicode": *cmapRef,
+	}
+	fontRef, err := xrt.IndRefForNewObject(font)
+	if err != nil {
+		return err
+	}
+
+	// Two geometries. Td deltas accumulate on the line matrix; the
+	// first Td sets the absolute start position, the rest move
+	// relative to it.
+	var content string
+	if ordered {
+		// MCID 0 @ Y=720, MCID 1 @ Y=600 (Td 0 -120), MCID 2 @ Y=400 (Td 0 -200).
+		content = "BT /F1 12 Tf\n" +
+			"/P <</MCID 0>> BDC 72 720 Td (A) Tj EMC\n" +
+			"/P <</MCID 1>> BDC 0 -120 Td (B) Tj EMC\n" +
+			"/P <</MCID 2>> BDC 0 -200 Td (C) Tj EMC\n" +
+			"ET\n"
+	} else {
+		// MCID 0 @ Y=400, MCID 1 @ Y=600 (Td 0 +200), MCID 2 @ Y=720 (Td 0 +120).
+		content = "BT /F1 12 Tf\n" +
+			"/P <</MCID 0>> BDC 72 400 Td (A) Tj EMC\n" +
+			"/P <</MCID 1>> BDC 0 200 Td (B) Tj EMC\n" +
+			"/P <</MCID 2>> BDC 0 120 Td (C) Tj EMC\n" +
+			"ET\n"
+	}
+
+	contentStream := types.StreamDict{
+		Dict:    types.Dict{},
+		Content: []byte(content),
+	}
+	if err := contentStream.Encode(); err != nil {
+		return err
+	}
+	contentRef, err := xrt.IndRefForNewObject(contentStream)
+	if err != nil {
+		return err
+	}
+
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	pageDict, err := xrt.DereferenceDict(pageRef)
+	if err != nil {
+		return err
+	}
+	pageDict["Resources"] = types.Dict{
+		"Font": types.Dict{"F1": *fontRef},
+	}
+	pageDict["Contents"] = *contentRef
+
+	// Structure tree: Document → 3 P-elements, each carrying a bare
+	// integer K = MCID (the simplest /K shape: an integer means
+	// "this MCID on /Pg").
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	var kids types.Array
+	for mcid := 0; mcid < 3; mcid++ {
+		p := types.Dict{
+			"Type": types.Name("StructElem"),
+			"S":    types.Name("P"),
+			"P":    *docRef,
+			"Pg":   pageRef,
+			"K":    types.Integer(mcid),
+		}
+		pRef, err := xrt.IndRefForNewObject(p)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *pRef)
+	}
+	docElem["K"] = kids
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+
+	return writeAndLog(ctx, dst)
+}
+
+// withTwoColumnReadingOrder writes a tagged PDF with four /P
+// structure elements arranged on a two-column page. MCIDs 0 and 1
+// live in the left column (MinX 72; Y 720 and 600), MCIDs 2 and 3
+// in the right column (MinX 300; Y 720 and 600). mcidOrder is the
+// MCID sequence the struct tree walks in: [0,1,2,3] reads left-
+// column-down then right-column-down (the natural order; MH-09-G4-001
+// passes), while [0,2,1,3] hops between columns (the column-step-
+// backwards branch fires on the third entry).
+func withTwoColumnReadingOrder(dst string, mcidOrder []int) error {
+	ctx, err := api.ReadContextFile(basePath)
+	if err != nil {
+		return err
+	}
+	xrt := ctx.XRefTable
+
+	cmap := types.StreamDict{
+		Dict: types.Dict{},
+		Content: []byte("/CIDInit /ProcSet findresource begin\n" +
+			"12 dict begin\nbegincmap\n/CIDSystemInfo <</Registry(Adobe)/Ordering(UCS)/Supplement 0>> def\n" +
+			"/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n" +
+			"1 begincodespacerange <00> <ff> endcodespacerange\n" +
+			"4 beginbfchar <41> <0041> <42> <0042> <43> <0043> <44> <0044> endbfchar\n" +
+			"endcmap CMapName currentdict /CMap defineresource pop end end\n"),
+	}
+	if err := cmap.Encode(); err != nil {
+		return err
+	}
+	cmapRef, err := xrt.IndRefForNewObject(cmap)
+	if err != nil {
+		return err
+	}
+	font := types.Dict{
+		"Type":      types.Name("Font"),
+		"Subtype":   types.Name("TrueType"),
+		"BaseFont":  types.Name("PDFA11YReadingOrder2Col"),
+		"FirstChar": types.Integer(32),
+		"LastChar":  types.Integer(122),
+		"Widths":    types.Array{types.Integer(500)},
+		"ToUnicode": *cmapRef,
+	}
+	fontRef, err := xrt.IndRefForNewObject(font)
+	if err != nil {
+		return err
+	}
+
+	// Tm sets absolute text-matrix positions, sidestepping any need
+	// to think about Td accumulation across the four MCIDs.
+	content := "BT /F1 12 Tf\n" +
+		"/P <</MCID 0>> BDC 1 0 0 1 72 720 Tm (A) Tj EMC\n" +
+		"/P <</MCID 1>> BDC 1 0 0 1 72 600 Tm (B) Tj EMC\n" +
+		"/P <</MCID 2>> BDC 1 0 0 1 300 720 Tm (C) Tj EMC\n" +
+		"/P <</MCID 3>> BDC 1 0 0 1 300 600 Tm (D) Tj EMC\n" +
+		"ET\n"
+	contentStream := types.StreamDict{
+		Dict:    types.Dict{},
+		Content: []byte(content),
+	}
+	if err := contentStream.Encode(); err != nil {
+		return err
+	}
+	contentRef, err := xrt.IndRefForNewObject(contentStream)
+	if err != nil {
+		return err
+	}
+
+	pageRef, err := firstPageRef(xrt)
+	if err != nil {
+		return err
+	}
+	pageDict, err := xrt.DereferenceDict(pageRef)
+	if err != nil {
+		return err
+	}
+	pageDict["Resources"] = types.Dict{
+		"Font": types.Dict{"F1": *fontRef},
+	}
+	pageDict["Contents"] = *contentRef
+
+	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
+	streeRef, err := xrt.IndRefForNewObject(streeDict)
+	if err != nil {
+		return err
+	}
+	parentTree := types.Dict{"Nums": types.Array{}}
+	ptRef, err := xrt.IndRefForNewObject(parentTree)
+	if err != nil {
+		return err
+	}
+	docElem := types.Dict{
+		"Type": types.Name("StructElem"),
+		"S":    types.Name("Document"),
+		"P":    *streeRef,
+	}
+	docRef, err := xrt.IndRefForNewObject(docElem)
+	if err != nil {
+		return err
+	}
+	var kids types.Array
+	for _, mcid := range mcidOrder {
+		p := types.Dict{
+			"Type": types.Name("StructElem"),
+			"S":    types.Name("P"),
+			"P":    *docRef,
+			"Pg":   pageRef,
+			"K":    types.Integer(mcid),
+		}
+		pRef, err := xrt.IndRefForNewObject(p)
+		if err != nil {
+			return err
+		}
+		kids = append(kids, *pRef)
+	}
+	docElem["K"] = kids
+	streeDict["K"] = *docRef
+	streeDict["ParentTree"] = *ptRef
+
+	cat, err := xrt.Catalog()
+	if err != nil {
+		return err
+	}
+	cat["StructTreeRoot"] = *streeRef
+	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
+
+	return writeAndLog(ctx, dst)
 }
 
 // chdirRepoRoot walks up from the current working directory to find the
