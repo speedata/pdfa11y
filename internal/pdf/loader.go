@@ -48,13 +48,15 @@ func LoadFile(path string) (model.Document, error) {
 
 // document is the pdfdisassembler-backed implementation of model.Document.
 type document struct {
-	r                 *pdd.Reader
-	closer            io.Closer
-	roleMap           map[string]string     // populated by loadRoleMap; may be empty
-	pageIndex         map[pdd.Reference]int // page-ref -> 1-based page number
-	pageReports       []model.PageReport    // cached result of Pages(); nil until first call
-	annotations       []model.Annotation    // cached result of Annotations()
-	annotationsLoaded bool                  // tracks Annotations() cache (nil-slice is a valid value)
+	r                   *pdd.Reader
+	closer              io.Closer
+	roleMap             map[string]string     // populated by loadRoleMap; may be empty
+	pageIndex           map[pdd.Reference]int // page-ref -> 1-based page number
+	pageReports         []model.PageReport    // cached result of Pages(); nil until first call
+	annotations         []model.Annotation    // cached result of Annotations()
+	annotationsLoaded   bool                  // tracks Annotations() cache (nil-slice is a valid value)
+	cachedClassMap      *pdd.Dict             // /StructTreeRoot/ClassMap, lazily resolved by classMap()
+	cachedClassMapKnown bool                  // distinguishes "not resolved yet" from "resolved, absent"
 }
 
 // loadRoleMap reads StructTreeRoot/RoleMap and caches custom-to-standard
@@ -318,36 +320,130 @@ func (e structElement) Attr(name string) string {
 	return s
 }
 
-// Attribute pulls a Name value out of the structure element's /A
-// attribute dictionary (or array of dictionaries). Returns "" when
-// /A is missing, when name is not present, or when the value is not
-// a Name.
+// Attribute pulls a Name value out of the structure element's
+// attribute owner dictionaries. PDF gives two equivalent ways to
+// attach attributes to a structure element (ISO 32000-1
+// §14.7.5.3/4): the /A entry on the element itself, holding either
+// a single attribute-owner dict or an array of them; and the /C
+// entry naming one or more class names that resolve against the
+// StructTreeRoot's /ClassMap to attribute-owner dicts. /A and /C
+// are searched in that order and the first hit wins. Returns ""
+// when neither carries the requested attribute, or when the value
+// is not a Name.
+//
+// Numeric and other non-name attribute values are not surfaced
+// here; add a typed accessor per data shape if a check needs one.
 func (e structElement) Attribute(name string) string {
-	aObj, ok := e.dict.Get("A")
+	if v := nameInAttrOwner(e.doc, e.dict.Get, "A", name); v != "" {
+		return v
+	}
+	return e.doc.attributeFromClass(e.dict, name)
+}
+
+// nameInAttrOwner reads key on dict (via getFn), resolves it as an
+// attribute-owner dict or array of dicts, and returns the first
+// Name value found under attrName. The indirection through getFn
+// is so the same helper can read /A from a struct element and
+// /<className> from a ClassMap dict.
+func nameInAttrOwner(d *document, getFn func(string) (pdd.Object, bool), key, attrName string) string {
+	obj, ok := getFn(key)
 	if !ok {
 		return ""
 	}
-	resolved, err := e.doc.r.Resolve(aObj)
+	resolved, err := d.r.Resolve(obj)
 	if err != nil {
 		return ""
 	}
 	switch v := resolved.(type) {
 	case *pdd.Dict:
-		if n, ok := v.Name(name); ok {
+		if n, ok := v.Name(attrName); ok {
 			return string(n)
 		}
 	case pdd.Array:
 		for _, item := range v {
-			d, err := e.doc.r.ResolveDict(item)
-			if err != nil || d == nil {
+			itemDict, err := d.r.ResolveDict(item)
+			if err != nil || itemDict == nil {
 				continue
 			}
-			if n, ok := d.Name(name); ok {
+			if n, ok := itemDict.Name(attrName); ok {
 				return string(n)
 			}
 		}
 	}
 	return ""
+}
+
+// attributeFromClass walks the element's /C entry (a single Name or
+// an array of Names), looks each class up in the document's
+// /ClassMap, and returns the first Name value found for attrName in
+// the resolved attribute-owner dict.
+func (d *document) attributeFromClass(elemDict *pdd.Dict, attrName string) string {
+	cObj, ok := elemDict.Get("C")
+	if !ok {
+		return ""
+	}
+	classMap, ok := d.classMap()
+	if !ok {
+		return ""
+	}
+	classes := classNamesFrom(cObj, d)
+	for _, cls := range classes {
+		if v := nameInAttrOwner(d, classMap.Get, cls, attrName); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// classMap returns the StructTreeRoot /ClassMap dict, cached on the
+// document. Returns (nil, false) when the catalog has no
+// StructTreeRoot or no ClassMap.
+func (d *document) classMap() (*pdd.Dict, bool) {
+	if d.cachedClassMapKnown {
+		return d.cachedClassMap, d.cachedClassMap != nil
+	}
+	d.cachedClassMapKnown = true
+	cat, err := d.r.Catalog()
+	if err != nil {
+		return nil, false
+	}
+	stree, ok := cat.Dict("StructTreeRoot")
+	if !ok {
+		return nil, false
+	}
+	cm, ok := stree.Dict("ClassMap")
+	if !ok {
+		return nil, false
+	}
+	d.cachedClassMap = cm
+	return cm, true
+}
+
+// classNamesFrom decodes /C into the list of class names it carries.
+// /C may be a single Name or an array of Names; both forms collapse
+// to []string.
+func classNamesFrom(cObj pdd.Object, d *document) []string {
+	resolved, err := d.r.Resolve(cObj)
+	if err != nil {
+		return nil
+	}
+	switch v := resolved.(type) {
+	case pdd.Name:
+		return []string{string(v)}
+	case pdd.Array:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			r, err := d.r.Resolve(item)
+			if err != nil {
+				continue
+			}
+			if n, ok := r.(pdd.Name); ok {
+				out = append(out, string(n))
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 // Namespace resolves the /NS entry on this struct element (or

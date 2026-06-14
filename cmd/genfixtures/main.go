@@ -39,6 +39,23 @@ const xmpUA1 = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 </x:xmpmeta>
 <?xpacket end="w"?>`
 
+// xmpUA1FullID is xmpUA1 plus a pdfuaid:rev so the PDF/UA
+// identification schema is complete per ISO 14289-2 §5. Used by
+// the MH-06-006 passing fixture; xmpUA1 keeps the part-only shape
+// used by MH-06-006's failing fixture and unchanged downstream
+// callers.
+const xmpUA1FullID = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>1</pdfuaid:part>
+      <pdfuaid:rev>2014</pdfuaid:rev>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`
+
 const xmpUA1WithDCTitle = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -97,6 +114,10 @@ func run() error {
 	}
 	if err := withMetadataStream("internal/checks/metadata/testdata/with-pdfua-id.pdf",
 		xmpUA1); err != nil {
+		return err
+	}
+	if err := withMetadataStream("internal/checks/metadata/testdata/with-pdfua-id-rev.pdf",
+		xmpUA1FullID); err != nil {
 		return err
 	}
 	if err := withMetadataStream("internal/checks/metadata/testdata/with-xmp-title.pdf",
@@ -232,6 +253,10 @@ func run() error {
 		""); err != nil {
 		return err
 	}
+	if err := withTableHeaderClassMap(
+		"internal/checks/tables/testdata/table-th-scope-via-classmap.pdf"); err != nil {
+		return err
+	}
 
 	// MH-16-002 / MH-16-003: List item children and /ListNumbering.
 	if err := withListItem("internal/checks/lists/testdata/list-li-with-lbody.pdf",
@@ -349,6 +374,12 @@ func run() error {
 		""); err != nil {
 		return err
 	}
+	// MH-17-015: math must have a Formula ancestor. The stranded
+	// fixture places math directly under Document, skipping Formula.
+	if err := withMathWithoutFormula(
+		"internal/checks/graphics/testdata/math-stranded.pdf"); err != nil {
+		return err
+	}
 
 	// MH-06-005: DocumentInfo /Title and XMP dc:title agree.
 	if err := withTitleAgreement("internal/checks/metadata/testdata/title-agreement-ok.pdf",
@@ -386,6 +417,38 @@ func run() error {
 		return err
 	}
 	if err := withTabs("internal/checks/taborder/testdata/tabs-r.pdf",
+		"R"); err != nil {
+		return err
+	}
+	// MH-14-009: Note structure type forbidden in PDF/UA-2.
+	if err := withNoteUA2(
+		"internal/checks/notes/testdata/note-in-ua2.pdf"); err != nil {
+		return err
+	}
+	// MH-28-010: XFA forms forbidden in PDF/UA-2.
+	if err := withXFAUA2(
+		"internal/checks/annotations/testdata/xfa-in-ua2.pdf"); err != nil {
+		return err
+	}
+	// MH-28-009: deprecated annotation types forbidden in PDF/UA-2.
+	if err := withDeprecatedAnnotUA2(
+		"internal/checks/annotations/testdata/sound-in-ua2.pdf",
+		"Sound"); err != nil {
+		return err
+	}
+	// PDF/UA-2 broadens the allowed set to S, A, W. Two fixtures
+	// drive the UA-2 branch of the check; both pass under UA-2 but
+	// would fail under UA-1.
+	if err := withTabsUA2("internal/checks/taborder/testdata/tabs-a-ua2.pdf",
+		"A"); err != nil {
+		return err
+	}
+	if err := withTabsUA2("internal/checks/taborder/testdata/tabs-w-ua2.pdf",
+		"W"); err != nil {
+		return err
+	}
+	// And: R is still disallowed even under UA-2.
+	if err := withTabsUA2("internal/checks/taborder/testdata/tabs-r-ua2.pdf",
 		"R"); err != nil {
 		return err
 	}
@@ -1409,6 +1472,109 @@ func withFormulaMTextChildren(dst, childTag string) error {
 	return nil
 }
 
+// withTableHeaderClassMap writes a minimal document whose TH
+// carries its /Scope attribute through a ClassMap reference
+// rather than a direct /A entry: TH has /C /TH-col, and
+// StructTreeRoot has /ClassMap << /TH-col << /O /Table /Scope
+// /Column >> >>. ISO 32000-1 §14.7.5.3/4 says both routes are
+// equivalent; MH-15-005 must accept either.
+//
+// Written by hand because pdfcpu's withTablePattern was built
+// before ClassMap support landed in the fixture set; extending
+// it would touch every existing table fixture for one extra
+// case.
+func withTableHeaderClassMap(dst string) error {
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.7\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> /ClassMap << /TH-col << /O /Table /Scope /Column >> >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Table /P 5 0 R /Pg 3 0 R /K 7 0 R >>\nendobj\n")
+	off7 := offset()
+	buf.WriteString("7 0 obj\n<< /Type /StructElem /S /TR /P 6 0 R /Pg 3 0 R /K 8 0 R >>\nendobj\n")
+	off8 := offset()
+	buf.WriteString("8 0 obj\n<< /Type /StructElem /S /TH /P 7 0 R /Pg 3 0 R /C /TH-col >>\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 9\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7, off8} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 9 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withMathWithoutFormula writes a PDF/UA-2 document whose
+// structure tree contains a `math` element (in the MathML
+// namespace) placed directly under Document, with no Formula
+// ancestor. MH-17-015 fires on this layout.
+func withMathWithoutFormula(dst string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 8 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /math /P 5 0 R /Pg 3 0 R /NS 7 0 R >>\nendobj\n")
+	off7 := offset()
+	buf.WriteString("7 0 obj\n<< /Type /Namespace /NS (http://www.w3.org/1998/Math/MathML) >>\nendobj\n")
+	off8 := offset()
+	fmt.Fprintf(&buf,
+		"8 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 9\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7, off8} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 9 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
 // withFormulaMathNamespace writes a PDF/UA-2 document with a
 // Document → Formula → math structure tree where math optionally
 // declares /NS pointing at a Namespace dictionary carrying the
@@ -2083,6 +2249,207 @@ func withTabs(dst, tabs string) error {
 	}
 	pageDict["Tabs"] = types.Name(tabs)
 	return writeAndLog(ctx, dst)
+}
+
+// withDeprecatedAnnotUA2 writes a minimal PDF/UA-2 document with
+// a single annotation of the supplied (deprecated) subtype on
+// page 1. Used by MH-28-009.
+func withDeprecatedAnnotUA2(dst, subtype string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Annots [4 0 R] >>\nendobj\n")
+	off4 := offset()
+	fmt.Fprintf(&buf,
+		"4 0 obj\n<< /Type /Annot /Subtype /%s /Rect [50 50 100 100] >>\nendobj\n", subtype)
+	off5 := offset()
+	fmt.Fprintf(&buf,
+		"5 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 6 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withXFAUA2 writes a minimal PDF/UA-2 document whose Catalog
+// /AcroForm carries an /XFA entry, exercising MH-28-010. The XFA
+// payload is a one-byte stub; the check only inspects the
+// presence of the entry, not its contents.
+func withXFAUA2(dst string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 4 0 R /Metadata 5 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Fields [] /XFA (stub) >>\nendobj\n")
+	off5 := offset()
+	fmt.Fprintf(&buf,
+		"5 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 6 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withNoteUA2 writes a minimal PDF/UA-2 document with a Document
+// → Note structure tree where Note lives in the default PDF
+// structure namespace. MH-14-009 fires on this fixture; an
+// equivalent FENote-based document would pass.
+func withNoteUA2(dst string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 7 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Note /P 5 0 R /Pg 3 0 R /ID (n1) >>\nendobj\n")
+	off7 := offset()
+	fmt.Fprintf(&buf,
+		"7 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 8\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 8 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withTabsUA2 writes a minimal PDF/UA-2 document (XMP declares
+// pdfuaid:part = 2) with /Tabs set to the supplied value on a
+// single page. Used by MH-08-001 to drive the UA-2 branch of the
+// check (which accepts S, A, W) without disturbing the legacy
+// UA-1 fixtures that withTabs already produces.
+func withTabsUA2(dst, tabs string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 4 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	fmt.Fprintf(&buf,
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Tabs /%s >>\nendobj\n",
+		tabs)
+	off4 := offset()
+	fmt.Fprintf(&buf,
+		"4 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 5\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 5 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
 }
 
 // withPermissions writes the base PDF, then re-encrypts it with

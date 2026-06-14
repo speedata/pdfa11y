@@ -17,6 +17,8 @@ import (
 var (
 	partElem = regexp.MustCompile(`<\s*pdfuaid:part\s*>\s*([12])\s*<\s*/\s*pdfuaid:part\s*>`)
 	partAttr = regexp.MustCompile(`\bpdfuaid:part\s*=\s*["']\s*([12])\s*["']`)
+	revElem  = regexp.MustCompile(`<\s*pdfuaid:rev\s*>\s*(\d{4})\s*<\s*/\s*pdfuaid:rev\s*>`)
+	revAttr  = regexp.MustCompile(`\bpdfuaid:rev\s*=\s*["']\s*(\d{4})\s*["']`)
 )
 
 // DetectPart reads the document's XMP metadata stream (if any) and
@@ -41,6 +43,36 @@ func DetectPart(doc model.Document) (part int, found bool, err error) {
 		return n, true, nil
 	}
 	if m := partAttr.FindSubmatch(content); m != nil {
+		n, _ := strconv.Atoi(string(m[1]))
+		return n, true, nil
+	}
+	return 0, false, nil
+}
+
+// DetectRev reads the document's XMP metadata stream and returns the
+// declared pdfuaid:rev value (a four-digit year per ISO 14289-2 §5).
+// Returns (0, false, nil) when the stream is absent or carries no
+// pdfuaid:rev. The regex requires exactly four digits, matching the
+// spec's "four digits of the year of publication or revision".
+// Same XMP-prefix limitation as DetectPart.
+func DetectRev(doc model.Document) (rev int, found bool, err error) {
+	catalog, err := doc.Catalog()
+	if err != nil {
+		return 0, false, err
+	}
+	mdObj, present := catalog.Find("Metadata")
+	if !present {
+		return 0, false, nil
+	}
+	content, err := doc.DecodeStream(mdObj)
+	if err != nil {
+		return 0, false, err
+	}
+	if m := revElem.FindSubmatch(content); m != nil {
+		n, _ := strconv.Atoi(string(m[1]))
+		return n, true, nil
+	}
+	if m := revAttr.FindSubmatch(content); m != nil {
 		n, _ := strconv.Atoi(string(m[1]))
 		return n, true, nil
 	}

@@ -17,6 +17,10 @@ func TestPageTabs(t *testing.T) {
 	}{
 		{"/Tabs = S passes", "testdata/tabs-s.pdf", true, 0},
 		{"/Tabs = R fails", "testdata/tabs-r.pdf", false, 1},
+		// PDF/UA-2 §8.9.3.3 widens the allowed set to S, A, W.
+		{"PDF/UA-2 /Tabs = A passes", "testdata/tabs-a-ua2.pdf", true, 0},
+		{"PDF/UA-2 /Tabs = W passes", "testdata/tabs-w-ua2.pdf", true, 0},
+		{"PDF/UA-2 /Tabs = R still fails", "testdata/tabs-r-ua2.pdf", false, 1},
 	}
 
 	check := taborder.PageTabs{}

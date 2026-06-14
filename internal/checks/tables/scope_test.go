@@ -17,6 +17,9 @@ func TestScope(t *testing.T) {
 	}{
 		{"TH with /Scope passes", "testdata/table-th-with-scope.pdf", true, 0},
 		{"TH without /Scope fails", "testdata/table-th-no-scope.pdf", false, 1},
+		// /Scope can be attached via /C → ClassMap as well (ISO
+		// 32000-1 §14.7.5.4); pdfa11y must accept both routes.
+		{"TH with /Scope via ClassMap passes", "testdata/table-th-scope-via-classmap.pdf", true, 0},
 	}
 
 	check := tables.Scope{}
