@@ -350,6 +350,43 @@ func (e structElement) Attribute(name string) string {
 	return ""
 }
 
+// AssociatedFiles resolves the element's own /AF array to a slice of
+// AssociatedFile snapshots. Used by MH-17-001 to detect MathML/LaTeX
+// AFs attached directly to a Formula structure element (the BPG
+// "Use of Associated files" pattern). Returns nil when /AF is
+// missing or empty; filespec entries that fail to resolve are
+// silently dropped.
+func (e structElement) AssociatedFiles() []model.AssociatedFile {
+	afObj, ok := e.dict.Get("AF")
+	if !ok {
+		return nil
+	}
+	arr, err := e.doc.r.ResolveArray(afObj)
+	if err != nil {
+		return nil
+	}
+	var out []model.AssociatedFile
+	for _, item := range arr {
+		fs, err := e.doc.r.ResolveDict(item)
+		if err != nil || fs == nil {
+			continue
+		}
+		af := model.AssociatedFile{SourcePath: "StructElement"}
+		if uf, ok := fs.String("UF"); ok && uf != "" {
+			af.Filename = uf
+		} else if f, ok := fs.String("F"); ok {
+			af.Filename = f
+		}
+		if rel, ok := fs.Name("AFRelationship"); ok {
+			af.Relationship = string(rel)
+		}
+		af.Subtype = e.doc.embeddedFileSubtype(fs)
+		af.Content = e.doc.embeddedFileContent(fs)
+		out = append(out, af)
+	}
+	return out
+}
+
 // Refs resolves the element's /Ref array (indirect references on
 // the StructElem dict) to the target StructElements. Targets that
 // either fail to resolve or that are not structure elements (no /S)

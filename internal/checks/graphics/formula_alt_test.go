@@ -17,6 +17,10 @@ func TestFormulaAlt(t *testing.T) {
 	}{
 		{"Formula with /Alt passes", "testdata/formula-with-alt.pdf", true, 0},
 		{"Formula without /Alt fails", "testdata/formula-no-alt.pdf", false, 1},
+		// PDF/UA-2 paths (BPG "Math in PDF"): MathML AF satisfies the
+		// check; an AF that is only a LaTeX source does not.
+		{"PDF/UA-2 Formula with MathML AF passes", "testdata/formula-mathml-af.pdf", true, 0},
+		{"PDF/UA-2 Formula with LaTeX-only AF fails", "testdata/formula-tex-only-af.pdf", false, 1},
 	}
 
 	check := graphics.FormulaAlt{}

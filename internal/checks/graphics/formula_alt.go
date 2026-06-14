@@ -3,30 +3,47 @@ package graphics
 import (
 	"github.com/speedata/pdfa11y/internal/engine"
 	"github.com/speedata/pdfa11y/internal/model"
+	"github.com/speedata/pdfa11y/internal/pdfua"
 )
 
-// FormulaAlt fails for every Formula structure element that carries
-// neither /Alt nor /ActualText. PDF/UA-1 §7.5 (and ISO 32000-1
-// §14.8.4.3 for structure types) requires Formula to provide an
-// accessible text equivalent. The rendered glyphs of a math formula
-// rarely round-trip through text extraction (greek letters, special
-// operator code points, custom math fonts), so without /Alt or
-// /ActualText assistive technology has no usable representation.
+// FormulaAlt fails for every Formula structure element that lacks
+// any of the accessible math representations the spec permits.
 //
-// Same shape as MH-13-004 for Figure: one finding per offending
-// Formula, the check declines (N/A) when the document has no
-// structure tree or no Formula elements at all.
+// PDF/UA-1 (ISO 14289-1 §7.5) recognises only the legacy path:
+// /Alt or /ActualText on the Formula. PDF/UA-2 (ISO 14289-2
+// §8.2.5.29.1, with the PDF Association BPG "Math in PDF" as
+// companion guidance) adds two MathML paths -- a 'math' child
+// element in the MathML namespace, or an Associated File whose
+// embedded stream carries MathML (AFRelationship=/Supplement,
+// Subtype=application/mathml+xml). When the spec is PDF/UA-2 any of
+// the four representations passes; the legacy /Alt is optional but
+// MathML, when present, takes precedence at AT consumption time
+// (BPG §"Precedence").
+//
+// The check declines (N/A) when the document has no structure tree
+// or no Formula elements at all. Spec selection follows the same
+// pattern as MH-09-003: read pdfuaid:part from XMP so engine.All()
+// callers (tests, the realworld driver) see UA-2 behaviour on
+// PDF/UA-2 documents without the CLI having to filter.
 type FormulaAlt struct{}
 
 func (FormulaAlt) ID() string    { return "MH-17-001" }
-func (FormulaAlt) Title() string { return "Formula has Alt or ActualText" }
+func (FormulaAlt) Title() string { return "Formula has accessible math representation" }
 func (FormulaAlt) Description() string {
-	return "Every Formula structure element must provide an accessible text equivalent. PDF/UA-1 §7.5 accepts /Alt (a description such as 'quadratic formula') or /ActualText (a verbatim text representation, e.g. 'a^2 + b^2 = c^2'). Without it screen readers cannot announce the formula -- the rendered glyphs typically rely on specialised math fonts whose Unicode mapping is unreliable."
+	return "Every Formula structure element must provide an accessible math representation. PDF/UA-1 §7.5 requires /Alt or /ActualText. PDF/UA-2 §8.2.5.29.1 additionally accepts MathML -- either as a direct 'math' child of Formula or as an Associated File with AFRelationship /Supplement and Subtype application/mathml+xml (PDF Association BPG \"Math in PDF\"). Without one of these, assistive technology has no usable representation; the rendered glyphs rely on specialised math fonts whose Unicode mapping is unreliable."
 }
 func (FormulaAlt) Category() engine.Category { return engine.CategoryGraphics }
 func (FormulaAlt) Severity() engine.Severity { return engine.SeverityError }
 func (FormulaAlt) Spec() engine.Spec         { return engine.SpecBoth }
 func (FormulaAlt) WCAG() []string            { return []string{"1.1.1"} }
+
+// mathMLSubtype is the MIME type a MathML Associated File must
+// declare per BPG §"Use of Associated files" / ISO 14289-2
+// §8.2.5.29.1. PDF/UA-2 §14.8.6.3 also registers
+// http://www.w3.org/1998/Math/MathML as the namespace for inline
+// 'math' struct-element children; a future MH-17-005 will validate
+// that namespace declaration explicitly.
+const mathMLSubtype = "application/mathml+xml"
 
 func (c FormulaAlt) Run(doc model.Document) []engine.Finding {
 	root, err := doc.StructTreeRoot()
@@ -45,9 +62,19 @@ func (c FormulaAlt) Run(doc model.Document) []engine.Finding {
 		}}
 	}
 
+	// Spec detection: PDF/UA-2 accepts MathML paths; PDF/UA-1 (or no
+	// declared part) accepts only /Alt or /ActualText. We do NOT
+	// fall back to "any spec" when the part is missing because that
+	// would silently accept MathML paths on documents that never
+	// claimed UA-2 conformance.
+	ua2 := false
+	if part, found, err := pdfua.DetectPart(doc); err == nil && found && part == 2 {
+		ua2 = true
+	}
+
 	var findings []engine.Finding
 	formulaCount := 0
-	c.walk(root, "/"+root.Type(), &findings, &formulaCount)
+	c.walk(root, "/"+root.Type(), ua2, &findings, &formulaCount)
 	if formulaCount == 0 {
 		return []engine.Finding{{
 			CheckID:  c.ID(),
@@ -58,22 +85,60 @@ func (c FormulaAlt) Run(doc model.Document) []engine.Finding {
 	return findings
 }
 
-func (c FormulaAlt) walk(elem model.StructElement, path string, out *[]engine.Finding, count *int) {
+func (c FormulaAlt) walk(elem model.StructElement, path string, ua2 bool, out *[]engine.Finding, count *int) {
 	if elem.Type() == "Formula" {
 		*count++
-		if elem.Attr("Alt") == "" && elem.Attr("ActualText") == "" {
+		if !hasAccessibleMath(elem, ua2) {
 			*out = append(*out, engine.Finding{
 				CheckID:  c.ID(),
 				Severity: engine.SeverityError,
-				Message:  "Formula has neither /Alt nor /ActualText",
-				Hint:     "Add /Alt with a textual description of the formula (e.g. 'Pythagorean theorem') or /ActualText with the verbatim text form (e.g. 'a^2 + b^2 = c^2').",
+				Message:  failureMessage(ua2),
+				Hint:     failureHint(ua2),
 				Location: &engine.Location{Page: elem.Page(), StructPath: path},
 			})
 		}
 	}
 	for _, child := range elem.Children() {
-		c.walk(child, path+"/"+child.Type(), out, count)
+		c.walk(child, path+"/"+child.Type(), ua2, out, count)
 	}
+}
+
+// hasAccessibleMath reports whether the Formula element carries any
+// representation that satisfies its target spec. Order of checks is
+// legacy-first (cheapest) so PDF/UA-1 documents short-circuit
+// without inspecting children or AFs.
+func hasAccessibleMath(elem model.StructElement, ua2 bool) bool {
+	if elem.Attr("Alt") != "" || elem.Attr("ActualText") != "" {
+		return true
+	}
+	if !ua2 {
+		return false
+	}
+	for _, child := range elem.Children() {
+		if child.Type() == "math" {
+			return true
+		}
+	}
+	for _, af := range elem.AssociatedFiles() {
+		if af.Relationship == "Supplement" && af.Subtype == mathMLSubtype {
+			return true
+		}
+	}
+	return false
+}
+
+func failureMessage(ua2 bool) string {
+	if ua2 {
+		return "Formula has no accessible math representation (no /Alt, /ActualText, math child, or MathML associated file)"
+	}
+	return "Formula has neither /Alt nor /ActualText"
+}
+
+func failureHint(ua2 bool) string {
+	if ua2 {
+		return "Add one of: a 'math' struct-element child in the MathML namespace; an Associated File with /AFRelationship /Supplement and /Subtype /application#2Fmathml+xml; or /Alt (a description) or /ActualText (a verbatim text form) on the Formula."
+	}
+	return "Add /Alt with a textual description of the formula (e.g. 'Pythagorean theorem') or /ActualText with the verbatim text form (e.g. 'a^2 + b^2 = c^2')."
 }
 
 func init() { engine.Register(FormulaAlt{}) }

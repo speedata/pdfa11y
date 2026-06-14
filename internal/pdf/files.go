@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"fmt"
+	"strings"
 
 	pdd "github.com/speedata/pdfdisassembler"
 
@@ -62,6 +63,77 @@ func (d *document) collectAF(container *pdd.Dict, source string, out *[]model.As
 		if rel, ok := fs.Name("AFRelationship"); ok {
 			af.Relationship = string(rel)
 		}
+		af.Subtype = d.embeddedFileSubtype(fs)
+		af.Content = d.embeddedFileContent(fs)
 		*out = append(*out, af)
 	}
+}
+
+// embeddedFileSubtype resolves /EF/F (or /EF/UF) on the filespec to
+// the EmbeddedFile stream dict and returns its /Subtype as a MIME
+// string. PDF encodes the MIME type as a Name with '/' written
+// '#2F'; we normalise it back to the conventional MIME form so
+// callers can compare against literals like "application/mathml+xml".
+// Returns "" when /EF is missing, the stream cannot be resolved, or
+// /Subtype is absent.
+func (d *document) embeddedFileSubtype(fs *pdd.Dict) string {
+	ef, ok := fs.Dict("EF")
+	if !ok {
+		return ""
+	}
+	streamObj, ok := ef.Get("F")
+	if !ok {
+		streamObj, ok = ef.Get("UF")
+		if !ok {
+			return ""
+		}
+	}
+	resolved, err := d.r.Resolve(streamObj)
+	if err != nil {
+		return ""
+	}
+	var streamDict *pdd.Dict
+	switch v := resolved.(type) {
+	case *pdd.Dict:
+		streamDict = v
+	case *pdd.Stream:
+		streamDict = v.Dict
+	default:
+		return ""
+	}
+	name, ok := streamDict.Name("Subtype")
+	if !ok {
+		return ""
+	}
+	// PDF Names use '#2F' as the escape for '/'. pdfdisassembler hands
+	// the Name back already decoded in some cases and raw in others;
+	// normalise both forms.
+	s := string(name)
+	s = strings.ReplaceAll(s, "#2F", "/")
+	s = strings.ReplaceAll(s, "#2f", "/")
+	return s
+}
+
+// embeddedFileContent resolves /EF/F on the filespec to the
+// EmbeddedFile stream and returns its decoded bytes. Returns nil
+// when /EF is missing, the stream cannot be resolved, or decoding
+// fails -- callers (currently MH-17-004) treat nil as "no content
+// available" rather than retry.
+func (d *document) embeddedFileContent(fs *pdd.Dict) []byte {
+	ef, ok := fs.Dict("EF")
+	if !ok {
+		return nil
+	}
+	streamObj, ok := ef.Get("F")
+	if !ok {
+		streamObj, ok = ef.Get("UF")
+		if !ok {
+			return nil
+		}
+	}
+	content, err := d.DecodeStream(streamObj)
+	if err != nil {
+		return nil
+	}
+	return content
 }

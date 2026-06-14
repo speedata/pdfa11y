@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	pdfmodel "github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -267,6 +268,53 @@ func run() error {
 	}
 	if err := withFormula("internal/checks/graphics/testdata/formula-no-alt.pdf",
 		""); err != nil {
+		return err
+	}
+	// MH-17-001 (PDF/UA-2): MathML associated file passes; LaTeX-only AF
+	// (no MathML, no /Alt) fails — the BPG "Use of Associated files"
+	// pattern requires MathML as the supplement.
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-af.pdf",
+		afSpec{rel: "Supplement", subtype: "application/mathml+xml", filename: "math.xml"}); err != nil {
+		return err
+	}
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-tex-only-af.pdf",
+		afSpec{rel: "Source", subtype: "application/x-tex", filename: "math.tex"}); err != nil {
+		return err
+	}
+	// MH-17-002 / MH-17-003 failure fixtures: AF on a Formula with one
+	// half of the (AFRelationship=/Supplement, Subtype=application/mathml+xml)
+	// pair declared wrong. The "wrong-subtype" file declares the right
+	// relationship but the wrong Subtype; "wrong-relationship" is the
+	// mirror.
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-wrong-subtype.pdf",
+		afSpec{rel: "Supplement", subtype: "text/html", filename: "math.xml"}); err != nil {
+		return err
+	}
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-wrong-relationship.pdf",
+		afSpec{rel: "Source", subtype: "application/mathml+xml", filename: "math.xml"}); err != nil {
+		return err
+	}
+	// MH-17-004: MathML AF stream content failure modes. Filespec
+	// metadata is identical to the passing fixture above; only the
+	// embedded stream's bytes differ.
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-empty.pdf",
+		afSpec{rel: "Supplement", subtype: "application/mathml+xml", filename: "math.xml",
+			content: []byte("")}); err != nil {
+		return err
+	}
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-malformed.pdf",
+		afSpec{rel: "Supplement", subtype: "application/mathml+xml", filename: "math.xml",
+			content: []byte(`<math xmlns="http://www.w3.org/1998/Math/MathML"><mi`)}); err != nil {
+		return err
+	}
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-wrong-root.pdf",
+		afSpec{rel: "Supplement", subtype: "application/mathml+xml", filename: "math.xml",
+			content: []byte(`<foo xmlns="http://www.w3.org/1998/Math/MathML"/>`)}); err != nil {
+		return err
+	}
+	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-wrong-namespace.pdf",
+		afSpec{rel: "Supplement", subtype: "application/mathml+xml", filename: "math.xml",
+			content: []byte(`<math xmlns="http://example.org/wrong"><mi>x</mi></math>`)}); err != nil {
 		return err
 	}
 
@@ -1129,6 +1177,122 @@ func withAssociatedFile(dst, relationship string) error {
 	fmt.Fprintf(&buf, "%010d 00000 n \n", off4)
 
 	buf.WriteString("trailer\n<< /Size 5 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// afSpec describes one /AF filespec attached to the Formula in
+// withFormulaUA2AF: the relationship name, the embedded-file MIME
+// subtype, the filename, and an optional explicit stream payload.
+// When content is nil, withFormulaUA2AF picks a minimal payload
+// per subtype (a tiny MathML fragment for application/mathml+xml,
+// a literal "$x$" for x-tex). Tests for MH-17-004 pass an explicit
+// content (empty, malformed XML, wrong root, wrong namespace) to
+// exercise the content-validation paths.
+type afSpec struct {
+	rel      string
+	subtype  string
+	filename string
+	content  []byte
+}
+
+// withFormulaUA2AF writes a PDF/UA-2-flavoured one-page document
+// with a Document → Formula structure tree where the Formula
+// carries /AF [filespecRef]. The filespec resolves to an
+// EmbeddedFile stream whose /Subtype is the supplied MIME type and
+// whose /AFRelationship is the supplied name. The XMP Metadata
+// stream declares pdfuaid:part = 2 so MH-17-001's spec autodetect
+// runs the UA-2 branch.
+//
+// Written by hand because the path goes through several object
+// types pdfcpu's Writer is happy to rearrange or strip; the
+// MH-12-001 fixture took the same approach for the same reason.
+func withFormulaUA2AF(dst string, af afSpec) error {
+	streamContent := af.content
+	if streamContent == nil {
+		switch af.subtype {
+		case "application/mathml+xml":
+			streamContent = []byte(`<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>`)
+		default:
+			streamContent = []byte(`$x$`)
+		}
+	}
+	// Encode '/' as #2F in the Subtype Name per PDF name-escape rules.
+	subtypeEnc := strings.ReplaceAll(af.subtype, "/", "#2F")
+
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	// 1 Catalog -> StructTreeRoot, MarkInfo, Metadata.
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 8 0 R >>\nendobj\n")
+
+	// 2 Pages -> 3.
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+
+	// 3 Page (no real content; the structure tree references nothing in
+	// the content stream because no Formula check inspects MCIDs).
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+
+	// 4 StructTreeRoot -> 5.
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+
+	// 5 Document -> 6.
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+
+	// 6 Formula with /AF [7 0 R].
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Formula /P 5 0 R /Pg 3 0 R /AF [7 0 R] >>\nendobj\n")
+
+	// 7 Filespec -> 9 (EmbeddedFile stream).
+	off7 := offset()
+	fmt.Fprintf(&buf,
+		"7 0 obj\n<< /Type /Filespec /F (%s) /UF (%s) /AFRelationship /%s /EF << /F 9 0 R /UF 9 0 R >> >>\nendobj\n",
+		af.filename, af.filename, af.rel)
+
+	// 8 XMP Metadata.
+	off8 := offset()
+	fmt.Fprintf(&buf,
+		"8 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	// 9 EmbeddedFile stream with the supplied Subtype.
+	off9 := offset()
+	fmt.Fprintf(&buf,
+		"9 0 obj\n<< /Type /EmbeddedFile /Subtype /%s /Length %d >>\nstream\n",
+		subtypeEnc, len(streamContent))
+	buf.Write(streamContent)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 10\n")
+	buf.WriteString("0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7, off8, off9} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 10 /Root 1 0 R >>\n")
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {

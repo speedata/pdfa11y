@@ -123,13 +123,15 @@ type ReadingOrderEntry struct {
 }
 
 // AssociatedFile is a value snapshot of one filespec entry reached
-// via an /AF array on the catalog or a page. Used by MH-12-001 to
-// check that each entry declares /AFRelationship.
+// via an /AF array on the catalog, a page, or a structure element.
+// Used by MH-12-001 to check that each entry declares
+// /AFRelationship, and by MH-17-001 to detect MathML-as-AF on
+// Formula structure elements.
 type AssociatedFile struct {
 	// SourcePath identifies where the /AF array sat. "Catalog" for
-	// the document-level /AF; "Page N" (1-based) for a per-page /AF.
-	// Future extensions (annotation /AF, XObject /AF) will use the
-	// same kind of human-readable label.
+	// the document-level /AF; "Page N" (1-based) for a per-page /AF;
+	// the structure-tree path (e.g. "/Document/Sect/Formula") when
+	// the AF was reached via StructElement.AssociatedFiles().
 	SourcePath string
 
 	// Filename is /UF if present (Unicode form), else /F. Empty when
@@ -141,6 +143,22 @@ type AssociatedFile struct {
 	// "Data", "Supplement", "Unspecified"). Empty when the entry is
 	// absent -- the MH-12-001 failure pattern.
 	Relationship string
+
+	// Subtype is the MIME type carried on the embedded-file stream
+	// (filespec /EF/F's /Subtype, PDF-encoded as a Name, e.g.
+	// "application/mathml+xml"). Empty when /EF or /Subtype is
+	// missing. The PDF '#2F' hex escape of the slash is normalised
+	// to "/" so callers can compare against literal MIME strings.
+	Subtype string
+
+	// Content is the decoded byte content of the embedded-file
+	// stream (filters applied). nil when the filespec has no /EF
+	// stream or decoding failed. Eager-loaded at collect time --
+	// MathML/LaTeX AFs are small enough (<1KB typical) that the
+	// alternative of lazy access would add API friction without
+	// material savings. MH-17-004 parses these bytes as XML; other
+	// callers should treat them as opaque.
+	Content []byte
 }
 
 // AcroFormField is a value snapshot of one terminal Widget annotation
@@ -491,4 +509,11 @@ type StructElement interface {
 	// cannot distinguish "no /Ref" from "broken /Ref". MH-19-001 uses
 	// it to follow Note/Reference cross-links.
 	Refs() []StructElement
+
+	// AssociatedFiles returns the filespecs reached through this
+	// element's own /AF array (typically a per-Formula AF carrying
+	// MathML or LaTeX source per ISO 14289-2 §8.2.5.29.1). Returns
+	// nil when the element has no /AF. Entries that fail to resolve
+	// to a dictionary are silently dropped.
+	AssociatedFiles() []AssociatedFile
 }
