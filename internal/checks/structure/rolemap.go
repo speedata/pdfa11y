@@ -15,6 +15,16 @@ import (
 // element plays -- "FirstParagraph", "BoxedText", "MyCallout" and
 // the like are meaningful only to the producer.
 //
+// Namespace-aware: elements that declare a non-default namespace
+// via /NS (or inherit one through the /P chain) live in that
+// namespace's type system, not the PDF default. ISO 32000-2
+// §14.8.6.3 registers the W3C MathML namespace explicitly; tags
+// like 'math', 'mi', 'mo' inside it are standard MathML, not
+// custom PDF tags, and do not require /RoleMap. Same logic applies
+// to any other registered namespace (LaTeX-project, custom XML
+// vocabularies, etc.) -- the check only fires in the default PDF
+// namespace, where ISO 32000 §14.8.4 defines the standard types.
+//
 // One finding per unique unmapped type, with the first occurrence's
 // location and an occurrence count. Reporting every instance would
 // flood the report for documents that use a custom tag dozens of
@@ -85,7 +95,7 @@ func (c RoleMap) Run(doc model.Document) []engine.Finding {
 
 func (c RoleMap) walk(elem model.StructElement, path string, seen map[string]*occurrence) {
 	t := elem.Type()
-	if t != "" && !standardStructType(t) {
+	if t != "" && inDefaultPDFNamespace(elem) && !standardStructType(t) {
 		if u, ok := seen[t]; ok {
 			u.count++
 		} else {
@@ -95,6 +105,29 @@ func (c RoleMap) walk(elem model.StructElement, path string, seen map[string]*oc
 	for _, child := range elem.Children() {
 		c.walk(child, path+"/"+child.Type(), seen)
 	}
+}
+
+// inDefaultPDFNamespace reports whether elem's namespace is the
+// default PDF structure namespace (where ISO 32000 §14.8.4 defines
+// the standard tag set). An element with no /NS at all, or one
+// pointing at the standard PDF / PDF 2.0 namespace URIs, lives in
+// that default; anything else (MathML, custom XML vocabularies)
+// is governed by its own namespace's type system.
+//
+// The standard PDF structure namespace URIs are registered by
+// ISO 32000-2 §14.8.6.3 / ISO/TS 32005:
+//   - http://iso.org/pdf/ssn   (PDF 1.7 structure namespace)
+//   - http://iso.org/pdf2/ssn  (PDF 2.0 structure namespace)
+func inDefaultPDFNamespace(elem model.StructElement) bool {
+	ns := elem.Namespace()
+	if ns == "" {
+		return true
+	}
+	switch ns {
+	case "http://iso.org/pdf/ssn", "http://iso.org/pdf2/ssn":
+		return true
+	}
+	return false
 }
 
 // standardStructType reports whether s is one of the PDF structure

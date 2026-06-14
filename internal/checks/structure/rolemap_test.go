@@ -66,6 +66,43 @@ func TestRoleMap(t *testing.T) {
 	}
 }
 
+// TestRoleMap_MathMLNamespacePasses ensures elements in the W3C
+// MathML namespace (ISO 32000-2 §14.8.6.3) are not treated as
+// custom PDF tags. A 'math' element with /NS pointing at the
+// MathML URI must pass, even though "math" is not in the default
+// PDF standard-type set.
+func TestRoleMap_MathMLNamespacePasses(t *testing.T) {
+	doc, err := pdf.LoadFile("../graphics/testdata/formula-math-ns-mathml.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	check := structure.RoleMap{}
+	result := engine.Result{Check: check, Findings: check.Run(doc)}
+	if result.State() != engine.VerdictPass {
+		t.Errorf("State() = %v on a MathML-namespaced document, want PASS (findings: %+v)",
+			result.State(), result.Findings)
+	}
+}
+
+// TestRoleMap_MathTagInDefaultNSFails ensures that a 'math'-named
+// element with no /NS at all (or a non-standard namespace) still
+// fires the check -- only elements explicitly declared in one of
+// the standard PDF / MathML / other registered namespaces escape
+// the unmapped-custom-type rule. This catches producers that
+// invent MathML-shaped tag names without the namespace machinery.
+func TestRoleMap_MathTagInDefaultNSFails(t *testing.T) {
+	doc, err := pdf.LoadFile("../graphics/testdata/formula-math-ns-none.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	check := structure.RoleMap{}
+	result := engine.Result{Check: check, Findings: check.Run(doc)}
+	if result.State() != engine.VerdictFail {
+		t.Errorf("State() = %v on default-NS 'math' tag, want FAIL (findings: %+v)",
+			result.State(), result.Findings)
+	}
+}
+
 // TestRoleMap_MappedCustomTagPasses ensures that a document with a
 // custom structure type WHICH IS declared in /RoleMap satisfies the
 // check -- the role-map indirection is the whole point of the rule.
