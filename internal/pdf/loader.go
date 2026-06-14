@@ -350,6 +350,48 @@ func (e structElement) Attribute(name string) string {
 	return ""
 }
 
+// Namespace resolves the /NS entry on this struct element (or
+// inherits it from /P ancestors) and returns the URI string from
+// the referenced Namespace dictionary's own /NS entry. Returns ""
+// when no /NS is declared anywhere up the chain or the resolution
+// fails. The recursion is bounded to a small depth to avoid
+// looping on malformed circular /P chains.
+func (e structElement) Namespace() string {
+	return e.doc.resolveNamespace(e.dict, 0)
+}
+
+// resolveNamespace walks /NS on dict, falling back to /P
+// inheritance up to maxDepth levels. A namespace dict carries the
+// URI under its own /NS string entry (ISO 32000-2 §14.8.6.3).
+func (d *document) resolveNamespace(dict *pdd.Dict, depth int) string {
+	const maxDepth = 32
+	if depth > maxDepth {
+		return ""
+	}
+	if nsObj, ok := dict.Get("NS"); ok {
+		nsDict, err := d.r.ResolveDict(nsObj)
+		if err == nil && nsDict != nil {
+			if uri, ok := nsDict.String("NS"); ok {
+				return uri
+			}
+		}
+	}
+	pObj, ok := dict.Get("P")
+	if !ok {
+		return ""
+	}
+	pDict, err := d.r.ResolveDict(pObj)
+	if err != nil || pDict == nil {
+		return ""
+	}
+	// Stop at the StructTreeRoot: it has /Type /StructTreeRoot, not
+	// /StructElem, and does not participate in namespace inheritance.
+	if t, ok := pDict.Name("Type"); ok && string(t) == "StructTreeRoot" {
+		return ""
+	}
+	return d.resolveNamespace(pDict, depth+1)
+}
+
 // AssociatedFiles resolves the element's own /AF array to a slice of
 // AssociatedFile snapshots. Used by MH-17-001 to detect MathML/LaTeX
 // AFs attached directly to a Formula structure element (the BPG

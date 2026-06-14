@@ -317,6 +317,38 @@ func run() error {
 			content: []byte(`<math xmlns="http://example.org/wrong"><mi>x</mi></math>`)}); err != nil {
 		return err
 	}
+	// MH-17-006: mtext children whitelist. Variant A of BPG math
+	// representation (math struct child) lets us exercise mtext
+	// directly. Three fixtures cover the cases: whitelisted PDF tag
+	// child (Span), non-whitelisted known PDF tag child (P), and an
+	// unknown tag (MathML-like, heuristic punts).
+	if err := withFormulaMTextChildren("internal/checks/graphics/testdata/mtext-children-ok.pdf",
+		"Span"); err != nil {
+		return err
+	}
+	if err := withFormulaMTextChildren("internal/checks/graphics/testdata/mtext-children-bad.pdf",
+		"P"); err != nil {
+		return err
+	}
+	if err := withFormulaMTextChildren("internal/checks/graphics/testdata/mtext-children-mathml-tag.pdf",
+		"mi"); err != nil {
+		return err
+	}
+	// MH-17-005: math struct child namespace. Three fixtures cover:
+	// /NS resolves to the W3C MathML URI (PASS), /NS resolves to a
+	// different URI (FAIL), and /NS is absent entirely (FAIL).
+	if err := withFormulaMathNamespace("internal/checks/graphics/testdata/formula-math-ns-mathml.pdf",
+		"http://www.w3.org/1998/Math/MathML"); err != nil {
+		return err
+	}
+	if err := withFormulaMathNamespace("internal/checks/graphics/testdata/formula-math-ns-wrong.pdf",
+		"http://example.org/wrong"); err != nil {
+		return err
+	}
+	if err := withFormulaMathNamespace("internal/checks/graphics/testdata/formula-math-ns-none.pdf",
+		""); err != nil {
+		return err
+	}
 
 	// MH-06-005: DocumentInfo /Title and XMP dc:title agree.
 	if err := withTitleAgreement("internal/checks/metadata/testdata/title-agreement-ok.pdf",
@@ -1293,6 +1325,169 @@ func withFormulaUA2AF(dst string, af afSpec) error {
 		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
 	}
 	buf.WriteString("trailer\n<< /Size 10 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withFormulaMTextChildren writes a PDF/UA-2-flavoured one-page
+// document with a Document → Formula → math → mtext → <childTag>
+// structure tree. The XMP Metadata stream declares
+// pdfuaid:part = 2 so MH-17-006's spec autodetect runs the UA-2
+// branch. The check inspects mtext's children and decides per
+// childTag whether the document conforms; we only need to vary
+// that single leaf to exercise every branch (whitelisted,
+// non-whitelisted known PDF tag, unknown tag).
+func withFormulaMTextChildren(dst, childTag string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 9 0 R >>\nendobj\n")
+
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Formula /P 5 0 R /Pg 3 0 R /K 7 0 R >>\nendobj\n")
+
+	off7 := offset()
+	buf.WriteString("7 0 obj\n<< /Type /StructElem /S /math /P 6 0 R /Pg 3 0 R /K 8 0 R >>\nendobj\n")
+
+	off8 := offset()
+	fmt.Fprintf(&buf,
+		"8 0 obj\n<< /Type /StructElem /S /mtext /P 7 0 R /Pg 3 0 R /K 10 0 R >>\nendobj\n")
+
+	off9 := offset()
+	fmt.Fprintf(&buf,
+		"9 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	off10 := offset()
+	fmt.Fprintf(&buf,
+		"10 0 obj\n<< /Type /StructElem /S /%s /P 8 0 R /Pg 3 0 R >>\nendobj\n", childTag)
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 11\n")
+	buf.WriteString("0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7, off8, off9, off10} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 11 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withFormulaMathNamespace writes a PDF/UA-2 document with a
+// Document → Formula → math structure tree where math optionally
+// declares /NS pointing at a Namespace dictionary carrying the
+// supplied URI. When nsURI is empty the math element gets no /NS
+// entry, exercising the "no namespace" failure path of MH-17-005.
+func withFormulaMathNamespace(dst, nsURI string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	// Object layout:
+	//   1 Catalog, 2 Pages, 3 Page, 4 StructTreeRoot, 5 Document,
+	//   6 Formula, 7 math (optionally /NS 9), 8 Metadata,
+	//   9 Namespace (only when nsURI != "")
+	withNS := nsURI != ""
+	count := 8
+	if withNS {
+		count = 9
+	}
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 8 0 R >>\nendobj\n")
+
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Formula /P 5 0 R /Pg 3 0 R /K 7 0 R >>\nendobj\n")
+
+	off7 := offset()
+	if withNS {
+		buf.WriteString("7 0 obj\n<< /Type /StructElem /S /math /P 6 0 R /Pg 3 0 R /NS 9 0 R >>\nendobj\n")
+	} else {
+		buf.WriteString("7 0 obj\n<< /Type /StructElem /S /math /P 6 0 R /Pg 3 0 R >>\nendobj\n")
+	}
+
+	off8 := offset()
+	fmt.Fprintf(&buf,
+		"8 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	off9 := offset()
+	if withNS {
+		fmt.Fprintf(&buf,
+			"9 0 obj\n<< /Type /Namespace /NS (%s) >>\nendobj\n", nsURI)
+	}
+
+	xrefOff := offset()
+	fmt.Fprintf(&buf, "xref\n0 %d\n", count+1)
+	buf.WriteString("0000000000 65535 f \n")
+	offsets := []int{off1, off2, off3, off4, off5, off6, off7, off8}
+	if withNS {
+		offsets = append(offsets, off9)
+	}
+	for _, o := range offsets {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 1 0 R >>\n", count+1)
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {

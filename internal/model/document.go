@@ -516,4 +516,14 @@ type StructElement interface {
 	// nil when the element has no /AF. Entries that fail to resolve
 	// to a dictionary are silently dropped.
 	AssociatedFiles() []AssociatedFile
+
+	// Namespace returns the URI string of the namespace this element
+	// belongs to, as declared by its /NS entry (or inherited through
+	// the /P chain). Returns "" when no /NS attribute can be resolved
+	// on the element or any ancestor -- in tagged PDF this means the
+	// element falls into the default/PDF namespace. MH-17-005 uses
+	// this to verify that a 'math' struct child of Formula is
+	// actually declared in the W3C MathML namespace, not just named
+	// "math" by coincidence (the ISO 32000-2 §14.8.6.3 contract).
+	Namespace() string
 }
