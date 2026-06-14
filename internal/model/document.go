@@ -86,40 +86,6 @@ type Document interface {
 	// meaningless. For an encrypted document the flags reflect the
 	// permission bits actually granted by /P.
 	Encryption() EncryptionInfo
-
-	// StructTreeOrder linearises the structure tree depth-first into
-	// the sequence of MCID references it makes — the document's
-	// intended reading order. Each entry is one (page, MCID) leaf;
-	// non-MCID children (OBJR, nested structure elements without K)
-	// do not appear. Entries are in the order their leaves are
-	// reached during the DFS walk.
-	//
-	// Pages without /Pg inheritance and not naming /Pg directly emit
-	// Page = 0; checks should treat such entries as un-locatable and
-	// skip them.
-	StructTreeOrder() ([]ReadingOrderEntry, error)
-}
-
-// ReadingOrderEntry is one leaf of the structure-tree linearisation:
-// the (page, MCID) pair plus the chain of structure-element tags from
-// StructTreeRoot down to the leaf's parent. The combination with
-// PageReport.MCIDBoxes lets reading-order checks compare the intended
-// order against the geometric layout on each page.
-type ReadingOrderEntry struct {
-	// Page is the 1-based page number this MCID lives on, or 0 when
-	// no /Pg attribute resolves on the path from the root to this
-	// leaf.
-	Page int
-
-	// MCID is the marked-content identifier the structure tree
-	// claims on the page above.
-	MCID int
-
-	// StructPath is the slash-separated chain of structure-element
-	// tags from the root down to the immediate parent of this MCID
-	// (e.g. "Document/Sect/H1"). Empty when the path could not be
-	// determined.
-	StructPath string
 }
 
 // AssociatedFile is a value snapshot of one filespec entry reached

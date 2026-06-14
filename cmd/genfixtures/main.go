@@ -275,6 +275,14 @@ func run() error {
 		""); err != nil {
 		return err
 	}
+	// MH-16-003 escalation: when the list carries Lbl children,
+	// ISO 14289-2 §8.2.5.25 makes /ListNumbering a hard "shall".
+	// withListItem with Lbl + LBody under LI but no /ListNumbering
+	// produces the Error variant.
+	if err := withListItem("internal/checks/lists/testdata/list-no-numbering-with-lbl.pdf",
+		[]string{"Lbl", "LBody"}); err != nil {
+		return err
+	}
 
 	// MH-14-006: heading style consistency (no /H + /H<n> mix).
 	if err := withMixedHeadings("internal/checks/headings/testdata/heading-style-hn-only.pdf",
@@ -436,6 +444,28 @@ func run() error {
 		"Sound"); err != nil {
 		return err
 	}
+	// MH-14-007: untyped H structure type forbidden in PDF/UA-2.
+	if err := withHeadingUA2(
+		"internal/checks/headings/testdata/heading-untyped-h-ua2.pdf",
+		"H"); err != nil {
+		return err
+	}
+	// MH-20-002: AS key in OCProperties/D forbidden in PDF/UA-2.
+	if err := withOCASUA2(
+		"internal/checks/optionalcontent/testdata/ocg-with-as-ua2.pdf"); err != nil {
+		return err
+	}
+	// MH-01-008: Document structure element in PDF 2.0 namespace.
+	if err := withDocumentNamespaceUA2(
+		"internal/checks/structure/testdata/document-ns-pdf2.pdf",
+		"http://iso.org/pdf2/ssn"); err != nil {
+		return err
+	}
+	if err := withDocumentNamespaceUA2(
+		"internal/checks/structure/testdata/document-ns-pdf17.pdf",
+		"http://iso.org/pdf/ssn"); err != nil {
+		return err
+	}
 	// PDF/UA-2 broadens the allowed set to S, A, W. Two fixtures
 	// drive the UA-2 branch of the check; both pass under UA-2 but
 	// would fail under UA-1.
@@ -527,23 +557,6 @@ func run() error {
 		return err
 	}
 
-	// MH-09-G4-001: reading order matches geometric layout.
-	if err := withReadingOrder("internal/checks/structure/testdata/reading-order-ok.pdf",
-		true); err != nil {
-		return err
-	}
-	if err := withReadingOrder("internal/checks/structure/testdata/reading-order-reversed.pdf",
-		false); err != nil {
-		return err
-	}
-	if err := withTwoColumnReadingOrder("internal/checks/structure/testdata/reading-order-two-col-ok.pdf",
-		[]int{0, 1, 2, 3}); err != nil {
-		return err
-	}
-	if err := withTwoColumnReadingOrder("internal/checks/structure/testdata/reading-order-two-col-hop.pdf",
-		[]int{0, 2, 1, 3}); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -2251,6 +2264,162 @@ func withTabs(dst, tabs string) error {
 	return writeAndLog(ctx, dst)
 }
 
+// withDocumentNamespaceUA2 writes a minimal PDF/UA-2 document whose
+// root Document structure element declares the supplied namespace
+// URI via /NS. MH-01-008 passes when nsURI is the PDF 2.0
+// namespace (http://iso.org/pdf2/ssn) and fails for any other URI.
+func withDocumentNamespaceUA2(dst, nsURI string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 7 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /NS 6 0 R >>\nendobj\n")
+	off6 := offset()
+	fmt.Fprintf(&buf,
+		"6 0 obj\n<< /Type /Namespace /NS (%s) >>\nendobj\n", nsURI)
+	off7 := offset()
+	fmt.Fprintf(&buf,
+		"7 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 8\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 8 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withOCASUA2 writes a minimal PDF/UA-2 document with an
+// OCProperties/D configuration dictionary that carries an /AS
+// entry. MH-20-002 fires on this layout.
+func withOCASUA2(dst string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R] /D << /Name (Default) /AS [<< /Event /View /Category [/View] /OCGs [4 0 R] >>] >> >> /Metadata 5 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /OCG /Name (Layer 1) >>\nendobj\n")
+	off5 := offset()
+	fmt.Fprintf(&buf,
+		"5 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 6 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withHeadingUA2 writes a minimal PDF/UA-2 document whose
+// structure tree is Document → <headingType>. Used by MH-14-007
+// to drive the untyped-H failure path; passing "H1" instead would
+// produce the passing variant.
+func withHeadingUA2(dst, headingType string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 7 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+	off6 := offset()
+	fmt.Fprintf(&buf,
+		"6 0 obj\n<< /Type /StructElem /S /%s /P 5 0 R /Pg 3 0 R >>\nendobj\n", headingType)
+	off7 := offset()
+	fmt.Fprintf(&buf,
+		"7 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 8\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 8 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
 // withDeprecatedAnnotUA2 writes a minimal PDF/UA-2 document with
 // a single annotation of the supplied (deprecated) subtype on
 // page 1. Used by MH-28-009.
@@ -2991,277 +3160,6 @@ func withOffPageAnnotation(dst string, hidden bool) error {
 	return withAnnotation(dst, annot)
 }
 
-// withReadingOrder writes a tagged PDF with three /P structure
-// elements wrapping three text runs at three different Y positions.
-// All MCIDs are referenced from the struct tree in order 0 → 1 → 2.
-//
-// ordered=true puts MCID 0 at the top (Y=720), MCID 1 in the middle
-// (Y=600) and MCID 2 at the bottom (Y=400). The DFS sequence walks
-// downward — matches the visual layout, MH-09-G4-001 passes.
-//
-// ordered=false flips the geometry: MCID 0 at the bottom (Y=400),
-// MCID 1 in the middle (Y=600), MCID 2 at the top (Y=720). The DFS
-// sequence walks upward by 200pt and 120pt — MH-09-G4-001 should
-// fire at the first upward step (the 200pt jump exceeds the
-// 0.5 × block-height threshold; block height = 320pt).
-func withReadingOrder(dst string, ordered bool) error {
-	ctx, err := api.ReadContextFile(basePath)
-	if err != nil {
-		return err
-	}
-	xrt := ctx.XRefTable
-
-	cmap := types.StreamDict{
-		Dict: types.Dict{},
-		Content: []byte("/CIDInit /ProcSet findresource begin\n" +
-			"12 dict begin\nbegincmap\n/CIDSystemInfo <</Registry(Adobe)/Ordering(UCS)/Supplement 0>> def\n" +
-			"/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n" +
-			"1 begincodespacerange <00> <ff> endcodespacerange\n" +
-			"3 beginbfchar <41> <0041> <42> <0042> <43> <0043> endbfchar\n" +
-			"endcmap CMapName currentdict /CMap defineresource pop end end\n"),
-	}
-	if err := cmap.Encode(); err != nil {
-		return err
-	}
-	cmapRef, err := xrt.IndRefForNewObject(cmap)
-	if err != nil {
-		return err
-	}
-	font := types.Dict{
-		"Type":      types.Name("Font"),
-		"Subtype":   types.Name("TrueType"),
-		"BaseFont":  types.Name("PDFA11YReadingOrder"),
-		"FirstChar": types.Integer(32),
-		"LastChar":  types.Integer(122),
-		"Widths":    types.Array{types.Integer(500)},
-		"ToUnicode": *cmapRef,
-	}
-	fontRef, err := xrt.IndRefForNewObject(font)
-	if err != nil {
-		return err
-	}
-
-	// Two geometries. Td deltas accumulate on the line matrix; the
-	// first Td sets the absolute start position, the rest move
-	// relative to it.
-	var content string
-	if ordered {
-		// MCID 0 @ Y=720, MCID 1 @ Y=600 (Td 0 -120), MCID 2 @ Y=400 (Td 0 -200).
-		content = "BT /F1 12 Tf\n" +
-			"/P <</MCID 0>> BDC 72 720 Td (A) Tj EMC\n" +
-			"/P <</MCID 1>> BDC 0 -120 Td (B) Tj EMC\n" +
-			"/P <</MCID 2>> BDC 0 -200 Td (C) Tj EMC\n" +
-			"ET\n"
-	} else {
-		// MCID 0 @ Y=400, MCID 1 @ Y=600 (Td 0 +200), MCID 2 @ Y=720 (Td 0 +120).
-		content = "BT /F1 12 Tf\n" +
-			"/P <</MCID 0>> BDC 72 400 Td (A) Tj EMC\n" +
-			"/P <</MCID 1>> BDC 0 200 Td (B) Tj EMC\n" +
-			"/P <</MCID 2>> BDC 0 120 Td (C) Tj EMC\n" +
-			"ET\n"
-	}
-
-	contentStream := types.StreamDict{
-		Dict:    types.Dict{},
-		Content: []byte(content),
-	}
-	if err := contentStream.Encode(); err != nil {
-		return err
-	}
-	contentRef, err := xrt.IndRefForNewObject(contentStream)
-	if err != nil {
-		return err
-	}
-
-	pageRef, err := firstPageRef(xrt)
-	if err != nil {
-		return err
-	}
-	pageDict, err := xrt.DereferenceDict(pageRef)
-	if err != nil {
-		return err
-	}
-	pageDict["Resources"] = types.Dict{
-		"Font": types.Dict{"F1": *fontRef},
-	}
-	pageDict["Contents"] = *contentRef
-
-	// Structure tree: Document → 3 P-elements, each carrying a bare
-	// integer K = MCID (the simplest /K shape: an integer means
-	// "this MCID on /Pg").
-	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
-	streeRef, err := xrt.IndRefForNewObject(streeDict)
-	if err != nil {
-		return err
-	}
-	parentTree := types.Dict{"Nums": types.Array{}}
-	ptRef, err := xrt.IndRefForNewObject(parentTree)
-	if err != nil {
-		return err
-	}
-	docElem := types.Dict{
-		"Type": types.Name("StructElem"),
-		"S":    types.Name("Document"),
-		"P":    *streeRef,
-	}
-	docRef, err := xrt.IndRefForNewObject(docElem)
-	if err != nil {
-		return err
-	}
-	var kids types.Array
-	for mcid := 0; mcid < 3; mcid++ {
-		p := types.Dict{
-			"Type": types.Name("StructElem"),
-			"S":    types.Name("P"),
-			"P":    *docRef,
-			"Pg":   pageRef,
-			"K":    types.Integer(mcid),
-		}
-		pRef, err := xrt.IndRefForNewObject(p)
-		if err != nil {
-			return err
-		}
-		kids = append(kids, *pRef)
-	}
-	docElem["K"] = kids
-	streeDict["K"] = *docRef
-	streeDict["ParentTree"] = *ptRef
-
-	cat, err := xrt.Catalog()
-	if err != nil {
-		return err
-	}
-	cat["StructTreeRoot"] = *streeRef
-	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
-
-	return writeAndLog(ctx, dst)
-}
-
-// withTwoColumnReadingOrder writes a tagged PDF with four /P
-// structure elements arranged on a two-column page. MCIDs 0 and 1
-// live in the left column (MinX 72; Y 720 and 600), MCIDs 2 and 3
-// in the right column (MinX 300; Y 720 and 600). mcidOrder is the
-// MCID sequence the struct tree walks in: [0,1,2,3] reads left-
-// column-down then right-column-down (the natural order; MH-09-G4-001
-// passes), while [0,2,1,3] hops between columns (the column-step-
-// backwards branch fires on the third entry).
-func withTwoColumnReadingOrder(dst string, mcidOrder []int) error {
-	ctx, err := api.ReadContextFile(basePath)
-	if err != nil {
-		return err
-	}
-	xrt := ctx.XRefTable
-
-	cmap := types.StreamDict{
-		Dict: types.Dict{},
-		Content: []byte("/CIDInit /ProcSet findresource begin\n" +
-			"12 dict begin\nbegincmap\n/CIDSystemInfo <</Registry(Adobe)/Ordering(UCS)/Supplement 0>> def\n" +
-			"/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n" +
-			"1 begincodespacerange <00> <ff> endcodespacerange\n" +
-			"4 beginbfchar <41> <0041> <42> <0042> <43> <0043> <44> <0044> endbfchar\n" +
-			"endcmap CMapName currentdict /CMap defineresource pop end end\n"),
-	}
-	if err := cmap.Encode(); err != nil {
-		return err
-	}
-	cmapRef, err := xrt.IndRefForNewObject(cmap)
-	if err != nil {
-		return err
-	}
-	font := types.Dict{
-		"Type":      types.Name("Font"),
-		"Subtype":   types.Name("TrueType"),
-		"BaseFont":  types.Name("PDFA11YReadingOrder2Col"),
-		"FirstChar": types.Integer(32),
-		"LastChar":  types.Integer(122),
-		"Widths":    types.Array{types.Integer(500)},
-		"ToUnicode": *cmapRef,
-	}
-	fontRef, err := xrt.IndRefForNewObject(font)
-	if err != nil {
-		return err
-	}
-
-	// Tm sets absolute text-matrix positions, sidestepping any need
-	// to think about Td accumulation across the four MCIDs.
-	content := "BT /F1 12 Tf\n" +
-		"/P <</MCID 0>> BDC 1 0 0 1 72 720 Tm (A) Tj EMC\n" +
-		"/P <</MCID 1>> BDC 1 0 0 1 72 600 Tm (B) Tj EMC\n" +
-		"/P <</MCID 2>> BDC 1 0 0 1 300 720 Tm (C) Tj EMC\n" +
-		"/P <</MCID 3>> BDC 1 0 0 1 300 600 Tm (D) Tj EMC\n" +
-		"ET\n"
-	contentStream := types.StreamDict{
-		Dict:    types.Dict{},
-		Content: []byte(content),
-	}
-	if err := contentStream.Encode(); err != nil {
-		return err
-	}
-	contentRef, err := xrt.IndRefForNewObject(contentStream)
-	if err != nil {
-		return err
-	}
-
-	pageRef, err := firstPageRef(xrt)
-	if err != nil {
-		return err
-	}
-	pageDict, err := xrt.DereferenceDict(pageRef)
-	if err != nil {
-		return err
-	}
-	pageDict["Resources"] = types.Dict{
-		"Font": types.Dict{"F1": *fontRef},
-	}
-	pageDict["Contents"] = *contentRef
-
-	streeDict := types.Dict{"Type": types.Name("StructTreeRoot")}
-	streeRef, err := xrt.IndRefForNewObject(streeDict)
-	if err != nil {
-		return err
-	}
-	parentTree := types.Dict{"Nums": types.Array{}}
-	ptRef, err := xrt.IndRefForNewObject(parentTree)
-	if err != nil {
-		return err
-	}
-	docElem := types.Dict{
-		"Type": types.Name("StructElem"),
-		"S":    types.Name("Document"),
-		"P":    *streeRef,
-	}
-	docRef, err := xrt.IndRefForNewObject(docElem)
-	if err != nil {
-		return err
-	}
-	var kids types.Array
-	for _, mcid := range mcidOrder {
-		p := types.Dict{
-			"Type": types.Name("StructElem"),
-			"S":    types.Name("P"),
-			"P":    *docRef,
-			"Pg":   pageRef,
-			"K":    types.Integer(mcid),
-		}
-		pRef, err := xrt.IndRefForNewObject(p)
-		if err != nil {
-			return err
-		}
-		kids = append(kids, *pRef)
-	}
-	docElem["K"] = kids
-	streeDict["K"] = *docRef
-	streeDict["ParentTree"] = *ptRef
-
-	cat, err := xrt.Catalog()
-	if err != nil {
-		return err
-	}
-	cat["StructTreeRoot"] = *streeRef
-	cat["MarkInfo"] = types.Dict{"Marked": types.Boolean(true)}
-
-	return writeAndLog(ctx, dst)
-}
 
 // chdirRepoRoot walks up from the current working directory to find the
 // pdfa11y repo root and changes to it. We look for the internal/checks

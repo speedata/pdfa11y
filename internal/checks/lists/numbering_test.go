@@ -21,6 +21,9 @@ func TestNumbering(t *testing.T) {
 	}{
 		{"L with /ListNumbering passes", "testdata/list-with-numbering.pdf", engine.VerdictPass, 0, 0},
 		{"L without /ListNumbering warns", "testdata/list-no-numbering.pdf", engine.VerdictWarn, 1, engine.SeverityWarning},
+		// When the list carries Lbl children, ISO 14289-2 §8.2.5.25
+		// upgrades the missing-numbering finding from Warning to Error.
+		{"L with Lbl but no /ListNumbering errors", "testdata/list-no-numbering-with-lbl.pdf", engine.VerdictFail, 1, engine.SeverityError},
 	}
 
 	check := lists.Numbering{}
