@@ -10,10 +10,13 @@ import (
 
 // TitleAgreement fails when the document title in DocumentInfo
 // /Title and in the XMP dc:title element disagree. PDF/UA-1 §7.1
-// requires both to be present (covered by MH-06-001 and MH-06-004)
-// and to express the same title -- otherwise readers see different
-// titles in different surfaces (window title, library catalogues,
-// search results, AT announcements).
+// makes XMP dc:title the normative title source (covered by
+// MH-06-004); PDF 2.0 / PDF/UA-2 additionally deprecate the
+// DocumentInfo dictionary so we no longer require /Title to be
+// present there. When it IS present, however, AT, viewers and
+// indexers can still consult DocumentInfo, and a mismatch would
+// show different titles depending on which surface the consumer
+// looks at -- this check catches that.
 //
 // Limitation: the XMP side is parsed with a small regex over the raw
 // stream, same approach as MH-06-004. Namespace prefixes other than
@@ -29,7 +32,7 @@ func (TitleAgreement) Severity() engine.Severity { return engine.SeverityError }
 func (TitleAgreement) Spec() engine.Spec         { return engine.SpecBoth }
 func (TitleAgreement) WCAG() []string            { return []string{"2.4.2"} }
 func (TitleAgreement) Description() string {
-	return "PDF/UA-1 §7.1 requires the title to be declared identically in DocumentInfo /Title and in the XMP dc:title element. Divergence between the two leaves AT, viewers and indexers showing different titles depending on which metadata source they consult."
+	return "When a document declares both DocumentInfo /Title and XMP dc:title they must express the same title. PDF/UA-1 §7.1 makes XMP dc:title the normative source (MH-06-004), and PDF 2.0 / PDF/UA-2 deprecate the DocumentInfo dictionary -- but legacy consumers still read DocumentInfo, so a mismatch leaves them announcing a different title than AT does. When only one of the two is present the check declines (N/A)."
 }
 
 // dc:title may be a bare element or wrap an rdf:Alt with rdf:li per
