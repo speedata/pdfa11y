@@ -21,6 +21,12 @@ func TestFormulaAlt(t *testing.T) {
 		// check; an AF that is only a LaTeX source does not.
 		{"PDF/UA-2 Formula with MathML AF passes", "testdata/formula-mathml-af.pdf", true, 0},
 		{"PDF/UA-2 Formula with LaTeX-only AF fails", "testdata/formula-tex-only-af.pdf", false, 1},
+		// math struct child is only accepted when it actually lives
+		// in the MathML namespace. A misnamed 'math' tag in the
+		// default PDF namespace conveys no math semantics to AT.
+		{"PDF/UA-2 math child in MathML namespace passes", "testdata/formula-math-ns-mathml.pdf", true, 0},
+		{"PDF/UA-2 math child in wrong namespace fails", "testdata/formula-math-ns-wrong.pdf", false, 1},
+		{"PDF/UA-2 math child with no namespace fails", "testdata/formula-math-ns-none.pdf", false, 1},
 	}
 
 	check := graphics.FormulaAlt{}

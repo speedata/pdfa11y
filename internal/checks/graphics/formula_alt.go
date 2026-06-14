@@ -107,6 +107,12 @@ func (c FormulaAlt) walk(elem model.StructElement, path string, ua2 bool, out *[
 // representation that satisfies its target spec. Order of checks is
 // legacy-first (cheapest) so PDF/UA-1 documents short-circuit
 // without inspecting children or AFs.
+//
+// For the math-child path we require the child to live in the W3C
+// MathML namespace, not merely be named "math" (an /NS-less or
+// wrong-namespace 'math' is treated by AT as an unmapped custom
+// type and conveys no math semantics). MH-17-005 reports the
+// namespace problem in its own finding when present.
 func hasAccessibleMath(elem model.StructElement, ua2 bool) bool {
 	if elem.Attr("Alt") != "" || elem.Attr("ActualText") != "" {
 		return true
@@ -115,7 +121,7 @@ func hasAccessibleMath(elem model.StructElement, ua2 bool) bool {
 		return false
 	}
 	for _, child := range elem.Children() {
-		if child.Type() == "math" {
+		if child.Type() == "math" && child.Namespace() == mathMLNamespace {
 			return true
 		}
 	}
