@@ -138,12 +138,27 @@ func run() error {
 	if err := withUntaggedContent("internal/checks/structure/testdata/untagged-content.pdf"); err != nil {
 		return err
 	}
+	// MH-13-004: Figure has /Alt or /ActualText. Same UA-1 §7.3
+	// asymmetry as MH-17-001 -- empty /Alt fails, empty /ActualText
+	// passes (decorative-figure idiom).
 	if err := withFigure("internal/checks/graphics/testdata/figure-with-alt.pdf",
-		"Sunset over the mountains"); err != nil {
+		figureSpec{alt: strPtr("Sunset over the mountains")}); err != nil {
 		return err
 	}
 	if err := withFigure("internal/checks/graphics/testdata/figure-no-alt.pdf",
-		""); err != nil {
+		figureSpec{}); err != nil {
+		return err
+	}
+	if err := withFigure("internal/checks/graphics/testdata/figure-alt-empty.pdf",
+		figureSpec{alt: strPtr("")}); err != nil {
+		return err
+	}
+	if err := withFigure("internal/checks/graphics/testdata/figure-actualtext.pdf",
+		figureSpec{actualText: strPtr("Decorative bullet")}); err != nil {
+		return err
+	}
+	if err := withFigure("internal/checks/graphics/testdata/figure-actualtext-empty.pdf",
+		figureSpec{actualText: strPtr("")}); err != nil {
 		return err
 	}
 	if err := withHeadings("internal/checks/headings/testdata/heading-ok.pdf",
@@ -294,13 +309,28 @@ func run() error {
 		return err
 	}
 
-	// MH-17-001: Formula has /Alt or /ActualText.
+	// MH-17-001: Formula has /Alt or /ActualText. PDF/UA-1 §7.7 is
+	// asymmetric -- empty /Alt fails, empty /ActualText passes
+	// (veraPDF corpus 7.7-t01 pass-c). The fixtures below cover both
+	// halves so the check exercises both code paths.
 	if err := withFormula("internal/checks/graphics/testdata/formula-with-alt.pdf",
-		"Pythagorean theorem"); err != nil {
+		formulaSpec{alt: strPtr("Pythagorean theorem")}); err != nil {
 		return err
 	}
 	if err := withFormula("internal/checks/graphics/testdata/formula-no-alt.pdf",
-		""); err != nil {
+		formulaSpec{}); err != nil {
+		return err
+	}
+	if err := withFormula("internal/checks/graphics/testdata/formula-alt-empty.pdf",
+		formulaSpec{alt: strPtr("")}); err != nil {
+		return err
+	}
+	if err := withFormula("internal/checks/graphics/testdata/formula-actualtext.pdf",
+		formulaSpec{actualText: strPtr("a^2 + b^2 = c^2")}); err != nil {
+		return err
+	}
+	if err := withFormula("internal/checks/graphics/testdata/formula-actualtext-empty.pdf",
+		formulaSpec{actualText: strPtr("")}); err != nil {
 		return err
 	}
 	// MH-17-001 (PDF/UA-2): MathML associated file passes; LaTeX-only AF
@@ -968,12 +998,19 @@ func withHeadings(dst string, levels []int) error {
 	return writeAndLog(ctx, dst)
 }
 
+// figureSpec mirrors formulaSpec: nil means "entry absent", a non-nil
+// pointer to "" means "entry present but empty". MH-13-004 treats
+// /Alt and /ActualText with the same asymmetry as MH-17-001 -- empty
+// /Alt fails, empty /ActualText passes ("render as silence").
+type figureSpec struct {
+	alt        *string
+	actualText *string
+}
+
 // withFigure derives a tagged PDF whose structure tree contains a single
-// Figure StructElem. If alt is non-empty, the Figure carries an /Alt
-// entry; otherwise /Alt is omitted, producing a known-failing fixture
-// for MH-13-004. All other fields match the minimal scaffolding from
-// withStructTree.
-func withFigure(dst, alt string) error {
+// Figure StructElem with the requested /Alt and/or /ActualText entries.
+// All other fields match the minimal scaffolding from withStructTree.
+func withFigure(dst string, spec figureSpec) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
 		return err
@@ -1009,8 +1046,11 @@ func withFigure(dst, alt string) error {
 		"P":    *docRef,
 		"Pg":   pageRef,
 	}
-	if alt != "" {
-		figElem["Alt"] = types.StringLiteral(alt)
+	if spec.alt != nil {
+		figElem["Alt"] = types.StringLiteral(*spec.alt)
+	}
+	if spec.actualText != nil {
+		figElem["ActualText"] = types.StringLiteral(*spec.actualText)
 	}
 	figRef, err := xrt.IndRefForNewObject(figElem)
 	if err != nil {
@@ -2708,11 +2748,30 @@ func withMixedHeadings(dst string, headingTypes []string) error {
 	return writeAndLog(ctx, dst)
 }
 
+// formulaSpec captures which of /Alt and /ActualText are present on
+// the Formula element and with what value. nil means the entry is
+// absent altogether; a non-nil pointer to an empty string means
+// the entry is present with an empty PDF string literal.
+//
+// /Alt and /ActualText are NOT symmetric in PDF/UA-1 §7.7: an empty
+// /Alt does not satisfy the accessible-math requirement, but an
+// empty /ActualText does (it conveys "render as silence"). The
+// veraPDF UA-1 §7.7 corpus encodes this asymmetry as three
+// fixtures (pass-c with empty ActualText, fail-b with empty Alt,
+// fail-a with neither).
+type formulaSpec struct {
+	alt        *string
+	actualText *string
+}
+
+// strPtr returns a pointer to s. Helper for formulaSpec call sites
+// so they can be written as a single-line literal.
+func strPtr(s string) *string { return &s }
+
 // withFormula derives a tagged PDF whose structure tree contains a
-// single Formula StructElem. Non-empty alt produces an /Alt entry;
-// empty alt omits both /Alt and /ActualText -- the MH-17-001 failure
-// pattern. Mirrors withFigure for the Figure check.
-func withFormula(dst, alt string) error {
+// single Formula StructElem with the requested /Alt and/or
+// /ActualText entries. Mirrors withFigure for the Figure check.
+func withFormula(dst string, spec formulaSpec) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
 		return err
@@ -2747,8 +2806,11 @@ func withFormula(dst, alt string) error {
 		"P":    *docRef,
 		"Pg":   pageRef,
 	}
-	if alt != "" {
-		formula["Alt"] = types.StringLiteral(alt)
+	if spec.alt != nil {
+		formula["Alt"] = types.StringLiteral(*spec.alt)
+	}
+	if spec.actualText != nil {
+		formula["ActualText"] = types.StringLiteral(*spec.actualText)
 	}
 	formulaRef, err := xrt.IndRefForNewObject(formula)
 	if err != nil {

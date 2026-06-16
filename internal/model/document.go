@@ -448,6 +448,15 @@ type StructElement interface {
 	// missing values yield the empty string.
 	Attr(name string) string
 
+	// AttrPresent reports whether the top-level attribute exists on
+	// the element dictionary as a string value (after dereferencing).
+	// Distinct from Attr() != "" because PDF/UA-1 §7.5 treats an
+	// /ActualText present-but-empty entry on Formula as a valid
+	// "render as silence" representation, while a missing entry is
+	// not. Callers that only care about a non-empty value should
+	// continue to use Attr().
+	AttrPresent(name string) bool
+
 	// Attribute returns a value from the structure element's /A
 	// attribute owner dictionary. PDF/UA structure attributes such as
 	// /ListNumbering (on L), /Scope (on TH), /RowSpan, /ColSpan,

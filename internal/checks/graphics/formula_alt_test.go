@@ -16,7 +16,13 @@ func TestFormulaAlt(t *testing.T) {
 		wantFindings int
 	}{
 		{"Formula with /Alt passes", "testdata/formula-with-alt.pdf", true, 0},
-		{"Formula without /Alt fails", "testdata/formula-no-alt.pdf", false, 1},
+		{"Formula without /Alt or /ActualText fails", "testdata/formula-no-alt.pdf", false, 1},
+		// veraPDF UA-1 §7.7 corpus: /Alt and /ActualText are not
+		// symmetric. An empty /Alt fails (no description), an empty
+		// /ActualText passes ("render as silence").
+		{"Formula with empty /Alt fails", "testdata/formula-alt-empty.pdf", false, 1},
+		{"Formula with /ActualText passes", "testdata/formula-actualtext.pdf", true, 0},
+		{"Formula with empty /ActualText passes", "testdata/formula-actualtext-empty.pdf", true, 0},
 		// PDF/UA-2 paths (BPG "Math in PDF"): MathML AF satisfies the
 		// check; an AF that is only a LaTeX source does not.
 		{"PDF/UA-2 Formula with MathML AF passes", "testdata/formula-mathml-af.pdf", true, 0},

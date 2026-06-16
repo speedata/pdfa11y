@@ -320,6 +320,11 @@ func (e structElement) Attr(name string) string {
 	return s
 }
 
+func (e structElement) AttrPresent(name string) bool {
+	_, ok := e.dict.String(name)
+	return ok
+}
+
 // Attribute pulls a Name value out of the structure element's
 // attribute owner dictionaries. PDF gives two equivalent ways to
 // attach attributes to a structure element (ISO 32000-1

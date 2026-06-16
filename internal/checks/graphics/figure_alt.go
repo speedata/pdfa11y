@@ -61,10 +61,17 @@ func (c FigureAlt) Run(doc model.Document) []engine.Finding {
 	return findings
 }
 
+// walk descends the structure tree and records one finding per Figure
+// without an accessible text equivalent. /Alt and /ActualText are not
+// symmetric: /Alt requires a non-empty value (an empty Alt conveys no
+// description), while /ActualText is satisfied by mere presence -- a
+// present-but-empty /ActualText is the documented "render as silence"
+// idiom for decorative figures, mirroring veraPDF UA-1 §7.7 pass-c
+// for Formula.
 func (c FigureAlt) walk(elem model.StructElement, path string, out *[]engine.Finding, count *int) {
 	if elem.Type() == "Figure" {
 		*count++
-		if elem.Attr("Alt") == "" && elem.Attr("ActualText") == "" {
+		if elem.Attr("Alt") == "" && !elem.AttrPresent("ActualText") {
 			*out = append(*out, engine.Finding{
 				CheckID:  c.ID(),
 				Severity: engine.SeverityError,

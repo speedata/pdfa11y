@@ -108,13 +108,19 @@ func (c FormulaAlt) walk(elem model.StructElement, path string, ua2 bool, out *[
 // legacy-first (cheapest) so PDF/UA-1 documents short-circuit
 // without inspecting children or AFs.
 //
+// /Alt and /ActualText are NOT symmetric: /Alt must be a non-empty
+// string (an empty Alt conveys no description), while /ActualText
+// is valid even when empty -- the convention is "replace with
+// nothing on AT extraction", matching the veraPDF UA-1 §7.7
+// pass-c fixture.
+//
 // For the math-child path we require the child to live in the W3C
 // MathML namespace, not merely be named "math" (an /NS-less or
 // wrong-namespace 'math' is treated by AT as an unmapped custom
 // type and conveys no math semantics). MH-17-005 reports the
 // namespace problem in its own finding when present.
 func hasAccessibleMath(elem model.StructElement, ua2 bool) bool {
-	if elem.Attr("Alt") != "" || elem.Attr("ActualText") != "" {
+	if elem.Attr("Alt") != "" || elem.AttrPresent("ActualText") {
 		return true
 	}
 	if !ua2 {

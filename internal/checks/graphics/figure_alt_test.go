@@ -17,7 +17,12 @@ func TestFigureAlt(t *testing.T) {
 		wantFindings int
 	}{
 		{"Figure with /Alt passes", "testdata/figure-with-alt.pdf", true, 0},
-		{"Figure without /Alt fails", "testdata/figure-no-alt.pdf", false, 1},
+		{"Figure without /Alt or /ActualText fails", "testdata/figure-no-alt.pdf", false, 1},
+		// /Alt and /ActualText asymmetry mirrored from Formula
+		// (veraPDF UA-1 §7.7 pass-c rationale).
+		{"Figure with empty /Alt fails", "testdata/figure-alt-empty.pdf", false, 1},
+		{"Figure with /ActualText passes", "testdata/figure-actualtext.pdf", true, 0},
+		{"Figure with empty /ActualText passes", "testdata/figure-actualtext-empty.pdf", true, 0},
 	}
 
 	check := graphics.FigureAlt{}
