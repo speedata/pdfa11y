@@ -282,6 +282,16 @@ type PageReport struct {
 	// not a pixel-perfect rendering of the content. Pages with no
 	// text-showing operators have an empty map.
 	MCIDBoxes map[int]Rect
+
+	// MCIDText maps each MCID seen on this page to the Unicode text
+	// shown while that MCID was the innermost (tightest-enclosing)
+	// marked-content tag. Decoded via the active font's /ToUnicode
+	// CMap; glyph codes with no ToUnicode entry are dropped, so fonts
+	// without /ToUnicode contribute empty or partial text. Unlike
+	// MCIDBoxes, text is attributed to the innermost MCID only (not to
+	// every ancestor on the stack), so a Span nested inside a P does
+	// not duplicate its text into the P's own entry.
+	MCIDText map[int]string
 }
 
 // Rect is an axis-aligned rectangle in PDF user-space units. The PDF
@@ -501,4 +511,30 @@ type StructElement interface {
 	// actually declared in the W3C MathML namespace, not just named
 	// "math" by coincidence (the ISO 32000-2 §14.8.6.3 contract).
 	Namespace() string
+
+	// Text returns the Unicode text drawn directly under this element's
+	// own marked content (its integer / MCR K-children), concatenated in
+	// K order. Text belonging to child structure elements is excluded --
+	// those carry their own Text(). The source is the page content stream
+	// decoded via /ToUnicode, so it reflects the glyphs actually shown,
+	// independent of any /ActualText or /Alt override. Returns "" for a
+	// grouping element with no direct marked-content text, or when the
+	// text cannot be decoded.
+	Text() string
+
+	// Content returns the element's content in /K order: an interleaved
+	// sequence of text runs (drawn under the element's own marked content)
+	// and child structure elements. This preserves the reading order that
+	// Children() and Text() each lose on their own -- e.g. a paragraph
+	// whose prose wraps several inline Formula children. Text runs that
+	// decode to empty are omitted; OBJR children are skipped.
+	Content() []ContentItem
+}
+
+// ContentItem is one entry in a structure element's content sequence (see
+// StructElement.Content). Exactly one field is set: Text for a run of
+// decoded marked-content text, or Element for a child structure element.
+type ContentItem struct {
+	Text    string
+	Element StructElement
 }

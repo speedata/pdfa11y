@@ -3,6 +3,7 @@ package pdf
 import (
 	"errors"
 	"io"
+	"strings"
 
 	pdd "github.com/speedata/pdfdisassembler"
 	"github.com/speedata/pdfdisassembler/contentstream"
@@ -36,6 +37,7 @@ func (d *document) Pages() ([]model.PageReport, error) {
 			Tabs:            p.Tabs,
 			FontCodes:       map[string]map[uint32]bool{},
 			MCIDBoxes:       map[int]model.Rect{},
+			MCIDText:        map[int]string{},
 		}
 		if rep.StructTreeMCIDs == nil {
 			rep.StructTreeMCIDs = map[int]bool{}
@@ -147,6 +149,9 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 	mcDepth := 0
 	currentFontKey := ""
 	currentFontCodeBytes := 1 // 1-byte default for simple fonts
+	// ToUnicode map of the active font, used to decode shown glyphs into
+	// readable text for MCIDText. nil when the font has no /ToUnicode.
+	var currentFontMappings map[uint32]string
 
 	// Stack of MCIDs active on the marked-content stack. -1 entries are
 	// BMC frames or BDC frames without an /MCID property — text inside
@@ -226,13 +231,16 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 					}
 				}
 				currentFontCodeBytes = codeBytesFor(f, ok)
+				currentFontMappings = f.ToUnicodeMappings
 			}
 		case "Tj", "'", `"`:
 			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, textArgBytes(op))
+			recordMCIDText(rep, mcidStack, decodeCodes(textArgBytes(op), currentFontCodeBytes, currentFontMappings))
 			recordPos(rep, mcidStack, textX, textY)
 			recordIfUntagged(rep, op, mcDepth)
 		case "TJ":
 			recordTextCodes(rep, currentFontKey, currentFontCodeBytes, tjArrayBytes(op))
+			recordMCIDText(rep, mcidStack, decodeTJText(op, currentFontCodeBytes, currentFontMappings))
 			recordPos(rep, mcidStack, textX, textY)
 			recordIfUntagged(rep, op, mcDepth)
 		default:
@@ -316,6 +324,74 @@ func recordTextCodes(rep *model.PageReport, fontKey string, codeBytes int, raw [
 			set[v] = true
 		}
 	}
+}
+
+// recordMCIDText appends decoded text to the innermost MCID currently on
+// the marked-content stack. Unlike recordPos (which extends boxes for
+// every ancestor MCID), text is attributed only to the tightest-enclosing
+// tag, so a Span nested in a P does not duplicate its text into the P.
+// Text drawn outside any MCID, or whose font yielded no decodable glyphs,
+// is dropped.
+func recordMCIDText(rep *model.PageReport, mcidStack []int, text string) {
+	if text == "" {
+		return
+	}
+	for i := len(mcidStack) - 1; i >= 0; i-- {
+		if mcidStack[i] >= 0 {
+			rep.MCIDText[mcidStack[i]] += text
+			return
+		}
+	}
+}
+
+// decodeCodes maps a run of glyph codes to Unicode text via the font's
+// /ToUnicode CMap. codeBytes is the active font's code width (see
+// codeBytesFor). Codes with no mapping are skipped -- a partial or
+// missing /ToUnicode therefore yields partial or empty text rather than
+// mojibake. Returns "" when mappings is nil.
+func decodeCodes(raw []byte, codeBytes int, mappings map[uint32]string) string {
+	if len(raw) == 0 || mappings == nil {
+		return ""
+	}
+	if codeBytes < 1 {
+		codeBytes = 1
+	}
+	var b strings.Builder
+	for i := 0; i+codeBytes <= len(raw); i += codeBytes {
+		var code uint32
+		for j := 0; j < codeBytes && j < 4; j++ {
+			code = code<<8 | uint32(raw[i+j])
+		}
+		if s, ok := mappings[code]; ok {
+			b.WriteString(s)
+		}
+	}
+	return b.String()
+}
+
+// decodeTJText decodes a TJ operand array to text. String elements are
+// decoded via decodeCodes; the numeric kerning adjustments between them
+// are inspected so that a large negative value -- the way producers
+// signal an inter-word gap that has no space glyph -- becomes a single
+// space. Small adjustments (ordinary kerning) are ignored. The threshold
+// is in thousandths of a text-space unit per the TJ operator definition.
+func decodeTJText(op contentstream.Op, codeBytes int, mappings map[uint32]string) string {
+	if mappings == nil || len(op.Operands) == 0 || op.Operands[0].Kind != contentstream.KindArray {
+		return ""
+	}
+	const wordGapThreshold = 100 // |adjustment| beyond this implies a space
+	var b strings.Builder
+	for _, el := range op.Operands[0].Array {
+		switch el.Kind {
+		case contentstream.KindString:
+			b.WriteString(decodeCodes(el.Bytes, codeBytes, mappings))
+		case contentstream.KindNumber:
+			if el.Number <= -wordGapThreshold {
+				b.WriteByte(' ')
+			}
+		}
+	}
+	return b.String()
 }
 
 // codeBytesFor picks the right code width for a Tf-referenced font.

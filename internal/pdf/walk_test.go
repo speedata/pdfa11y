@@ -1,6 +1,7 @@
 package pdf_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/speedata/pdfa11y/internal/model"
@@ -104,4 +105,126 @@ func TestMCIDBoxes(t *testing.T) {
 		t.Errorf("page 1: expected >= 2 distinct MinY values across MCIDBoxes, got %d", len(seen))
 	}
 	t.Logf("page 1: %d MCIDBoxes across %d distinct Y positions", len(first.MCIDBoxes), len(seen))
+}
+
+// TestMCIDText verifies the walker decodes shown glyphs into per-MCID
+// Unicode text. At least one MCID on the first page must carry the H1's
+// title text, proving the /ToUnicode decode path runs end to end.
+func TestMCIDText(t *testing.T) {
+	doc, err := pdf.LoadFile("../realworld/testdata/glu-pdfua-demo.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	pages, err := doc.Pages()
+	if err != nil {
+		t.Fatalf("pages: %v", err)
+	}
+	first := pages[0]
+	if len(first.MCIDText) == 0 {
+		t.Fatalf("page 1: expected decoded MCID text, got none")
+	}
+	var joined string
+	for _, s := range first.MCIDText {
+		joined += s + " "
+	}
+	// Raw per-MCID text reconstructs inter-word gaps from TJ kerning and
+	// can carry double spaces; collapse whitespace before matching.
+	joined = strings.Join(strings.Fields(joined), " ")
+	if !strings.Contains(joined, "Markdown to PDF/UA") {
+		t.Errorf("page 1 MCID text does not contain the H1 title; got %q", joined)
+	}
+}
+
+// TestStructElementText verifies that a structure element surfaces the
+// content-stream text drawn under its own marked content, attributed to
+// the right element and excluding text owned by child structure elements.
+func TestStructElementText(t *testing.T) {
+	doc, err := pdf.LoadFile("../realworld/testdata/glu-pdfua-demo.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	root, err := doc.StructTreeRoot()
+	if err != nil {
+		t.Fatalf("struct tree: %v", err)
+	}
+	h1 := findByType(root, "H1")
+	if h1 == nil {
+		t.Fatal("no H1 element found in fixture")
+	}
+	if got := strings.Join(strings.Fields(h1.Text()), " "); got != "Markdown to PDF/UA" {
+		t.Errorf("H1.Text() = %q, want %q", got, "Markdown to PDF/UA")
+	}
+	// The Document root groups children but owns no direct marked content,
+	// so its own text is empty even though its descendants have plenty.
+	if got := strings.TrimSpace(root.Text()); got != "" {
+		t.Errorf("Document root Text() = %q, want empty (text belongs to children)", got)
+	}
+}
+
+// TestStructElementContent verifies that Content() is the faithful,
+// ordered union of Children() and Text(): its element items match
+// Children() in order, and its text items concatenate to Text(). This is
+// the contract serializeContent relies on to preserve reading order when
+// prose wraps inline child elements.
+func TestStructElementContent(t *testing.T) {
+	doc, err := pdf.LoadFile("../realworld/testdata/glu-pdfua-demo.pdf")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	root, err := doc.StructTreeRoot()
+	if err != nil {
+		t.Fatalf("struct tree: %v", err)
+	}
+	var check func(e model.StructElement)
+	check = func(e model.StructElement) {
+		content := e.Content()
+
+		// Element items, in order, equal Children().
+		var elems []model.StructElement
+		var text string
+		for _, it := range content {
+			if it.Element != nil {
+				elems = append(elems, it.Element)
+			} else {
+				if it.Text == "" {
+					t.Errorf("<%s>: Content() yielded an empty text item", e.Type())
+				}
+				text += it.Text
+			}
+		}
+		kids := e.Children()
+		if len(elems) != len(kids) {
+			t.Errorf("<%s>: Content() has %d element items, Children() has %d", e.Type(), len(elems), len(kids))
+		} else {
+			for i := range kids {
+				if elems[i].Type() != kids[i].Type() {
+					t.Errorf("<%s>: content element %d is <%s>, Children() has <%s>", e.Type(), i, elems[i].Type(), kids[i].Type())
+				}
+			}
+		}
+
+		// Text items concatenate to Text().
+		if text != e.Text() {
+			t.Errorf("<%s>: concatenated Content() text = %q, Text() = %q", e.Type(), text, e.Text())
+		}
+
+		for _, c := range kids {
+			check(c)
+		}
+	}
+	check(root)
+}
+
+// findByType returns the first element of the given /S type in a
+// depth-first walk, or nil when none exists.
+func findByType(e model.StructElement, typ string) model.StructElement {
+	if e.Type() == typ {
+		return e
+	}
+	for _, c := range e.Children() {
+		if hit := findByType(c, typ); hit != nil {
+			return hit
+		}
+	}
+	return nil
 }

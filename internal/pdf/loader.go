@@ -313,6 +313,112 @@ func (e structElement) Children() []model.StructElement {
 	return children
 }
 
+// Content walks /K in order and returns the element's content as an
+// interleaved sequence of text runs and child structure elements:
+//   - bare integer MCID -> text on the element's own /Pg
+//   - {Type:MCR, Pg, MCID} dict -> text on the MCR's /Pg (or the
+//     element's own /Pg when the MCR omits /Pg)
+//   - dict with /S -> a child structure element
+//   - OBJR / other -> skipped
+//
+// Text runs that decode to empty are dropped so callers do not have to
+// filter them. Children() and Text() are the element- and text-only
+// projections of this sequence.
+func (e structElement) Content() []model.ContentItem {
+	kObj, ok := e.dict.Get("K")
+	if !ok {
+		return nil
+	}
+	resolved, err := e.doc.r.Resolve(kObj)
+	if err != nil {
+		return nil
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+
+	// Page for bare-integer MCID children: the element's own /Pg. MCR
+	// children may override it with their own /Pg.
+	var ownPg pdd.Reference
+	if pg, ok := e.dict.Get("Pg"); ok {
+		if ref, ok := pg.(pdd.Reference); ok {
+			ownPg = ref
+		}
+	}
+
+	var out []model.ContentItem
+	addText := func(pg pdd.Reference, mcid int) {
+		if t := e.doc.mcidText(pg, mcid); t != "" {
+			out = append(out, model.ContentItem{Text: t})
+		}
+	}
+	for _, item := range items {
+		if n, ok := asInt(item); ok {
+			addText(ownPg, int(n))
+			continue
+		}
+		childDict, err := e.doc.r.ResolveDict(item)
+		if err != nil || childDict == nil {
+			continue
+		}
+		// Nested structure elements carry their own content.
+		if _, hasS := childDict.Get("S"); hasS {
+			out = append(out, model.ContentItem{Element: structElement{doc: e.doc, dict: childDict}})
+			continue
+		}
+		if name, _ := childDict.Name("Type"); string(name) != "MCR" {
+			continue // OBJR or other non-content child
+		}
+		mcid, ok := childDict.Int("MCID")
+		if !ok {
+			continue
+		}
+		pg := ownPg
+		if p, ok := childDict.Get("Pg"); ok {
+			if ref, ok := p.(pdd.Reference); ok {
+				pg = ref
+			}
+		}
+		addText(pg, int(mcid))
+	}
+	return out
+}
+
+// Text concatenates the text runs of Content() in /K order, skipping the
+// child structure elements (which carry their own Text()). The result is
+// the page text drawn directly under this element's own marked content.
+func (e structElement) Text() string {
+	var b strings.Builder
+	for _, it := range e.Content() {
+		if it.Element == nil {
+			b.WriteString(it.Text)
+		}
+	}
+	return b.String()
+}
+
+// mcidText returns the decoded content-stream text recorded for one MCID
+// on the page identified by ref. Returns "" when ref is the zero
+// reference, the page is unknown, or the page carries no such MCID.
+func (d *document) mcidText(ref pdd.Reference, mcid int) string {
+	if ref == (pdd.Reference{}) {
+		return ""
+	}
+	num := d.pageIndex[ref]
+	if num == 0 {
+		return ""
+	}
+	reports, err := d.Pages()
+	if err != nil || num > len(reports) {
+		return ""
+	}
+	return reports[num-1].MCIDText[mcid]
+}
+
 func (e structElement) Attr(name string) string {
 	// Dict.String already handles indirect-ref resolution and decodes
 	// the PDF text-string encoding (PDFDocEncoded / UTF-16BE / UTF-8).
