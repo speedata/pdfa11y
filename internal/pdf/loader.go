@@ -274,7 +274,39 @@ func (e structElement) Type() string {
 	if !ok {
 		return ""
 	}
-	return e.doc.resolveRole(string(name))
+	s := string(name)
+	mapped, hasMapping := e.doc.roleMap[s]
+	if !hasMapping || mapped == s {
+		return s
+	}
+	// The element has a global /RoleMap entry. /RoleMap is the PDF 1.7
+	// mechanism for mapping custom (sui-generis) types onto standard
+	// ones; it must not override an element that already declares a
+	// standard structure type in the PDF standard namespace. PDF 2.0
+	// files routinely role-map new 2.0 types (Aside, FENote, ...) down
+	// to 1.7 fallbacks (Note, ...) purely so legacy 1.7 viewers can
+	// render them -- the declared 2.0 type is authoritative
+	// (ISO 14289-2 §8.2.5.14 Note 1). Custom types, or standard names
+	// used outside the standard namespace, still resolve through the
+	// map.
+	if model.IsStandardStructureType(s) && e.inStandardNamespace() {
+		return s
+	}
+	return e.doc.resolveRole(s)
+}
+
+// inStandardNamespace reports whether this element lives in the
+// default PDF structure namespace: no /NS at all, or one of the
+// registered PDF 1.7 / PDF 2.0 structure namespace URIs
+// (ISO 32000-2 §14.8.6.3). A standard structure type is only
+// authoritative -- and thus exempt from global role mapping --
+// within that namespace.
+func (e structElement) inStandardNamespace() bool {
+	switch e.Namespace() {
+	case "", "http://iso.org/pdf/ssn", "http://iso.org/pdf2/ssn":
+		return true
+	}
+	return false
 }
 
 func (e structElement) Children() []model.StructElement {
@@ -600,7 +632,7 @@ func (d *document) resolveNamespace(dict *pdd.Dict, depth int) string {
 }
 
 // AssociatedFiles resolves the element's own /AF array to a slice of
-// AssociatedFile snapshots. Used by MH-17-001 to detect MathML/LaTeX
+// AssociatedFile snapshots. Used by UA-17-001 to detect MathML/LaTeX
 // AFs attached directly to a Formula structure element (the BPG
 // "Use of Associated files" pattern). Returns nil when /AF is
 // missing or empty; filespec entries that fail to resolve are
@@ -744,7 +776,7 @@ func (d *document) fontIsEmbedded(font *pdd.Dict, subtype string) bool {
 //   - "Identity" — explicit /Identity name OR entry absent (ISO
 //     32000-1 §9.7.4.2 makes Identity the default)
 //   - "Stream"   — a stream is present
-//   - <name>     — any other Name value (the MH-31-001 failure path)
+//   - <name>     — any other Name value (the UA-31-001 failure path)
 // Only meaningful when the descendant is CIDFontType2; CIDFontType0
 // (Adobe CFF source) has no CIDToGIDMap at all and the field stays
 // "".

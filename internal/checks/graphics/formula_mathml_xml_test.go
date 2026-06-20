@@ -55,7 +55,7 @@ func TestFormulaMathMLXML(t *testing.T) {
 		{
 			"PDF/UA-2 without MathML AF is N/A",
 			// The /Source LaTeX fixture carries an AF but its Subtype is
-			// application/x-tex, so MH-17-004 has nothing to inspect.
+			// application/x-tex, so UA-17-004 has nothing to inspect.
 			"testdata/formula-tex-only-af.pdf",
 			engine.VerdictNA,
 			"",

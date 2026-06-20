@@ -20,7 +20,7 @@ import (
 // directly.
 type Permissions struct{}
 
-func (Permissions) ID() string                { return "MH-26-001" }
+func (Permissions) ID() string                { return "UA-26-001" }
 func (Permissions) Title() string             { return "Encryption permits accessibility extraction" }
 func (Permissions) Category() engine.Category { return engine.CategorySecurity }
 func (Permissions) Severity() engine.Severity { return engine.SeverityError }

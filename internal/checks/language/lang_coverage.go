@@ -24,14 +24,14 @@ import (
 // their own that AT would announce in a specific language.
 type LangCoverage struct{}
 
-func (LangCoverage) ID() string                { return "MH-11-002" }
+func (LangCoverage) ID() string                { return "UA-11-002" }
 func (LangCoverage) Title() string             { return "Text-bearing structure elements declare /Lang" }
 func (LangCoverage) Category() engine.Category { return engine.CategoryNaturalLanguage }
 func (LangCoverage) Severity() engine.Severity { return engine.SeverityError }
 func (LangCoverage) Spec() engine.Spec         { return engine.SpecBoth }
 func (LangCoverage) WCAG() []string            { return []string{"3.1.1", "3.1.2"} }
 func (LangCoverage) Description() string {
-	return "PDF/UA-1 §7.2 allows the document's natural language to be declared either at the Catalog or per structure element. The Catalog form is covered by MH-11-001; this check verifies the per-element coverage when the Catalog form is absent. Every text-bearing element (P, H/H1-H6, Span, Lbl, LBody, TD, TH, Caption, Note, BibEntry, Quote, Reference, TOCI) must carry /Lang or inherit it from an ancestor."
+	return "PDF/UA-1 §7.2 allows the document's natural language to be declared either at the Catalog or per structure element. The Catalog form is covered by UA-11-001; this check verifies the per-element coverage when the Catalog form is absent. Every text-bearing element (P, H/H1-H6, Span, Lbl, LBody, TD, TH, Caption, Note, BibEntry, Quote, Reference, TOCI) must carry /Lang or inherit it from an ancestor."
 }
 
 // textBearingTypes enumerates the standard structure types whose

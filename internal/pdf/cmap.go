@@ -3,7 +3,7 @@ package pdf
 import "bytes"
 
 // cmapCoverage is the subset of a ToUnicode CMap needed for
-// MH-10-002: the set of source codes for which the CMap actually
+// UA-10-002: the set of source codes for which the CMap actually
 // provides a mapping (regardless of the mapped Unicode value's
 // quality). Empty when the CMap declared only a codespace range.
 type cmapCoverage struct {
@@ -57,7 +57,7 @@ func parseToUnicode(stream []byte) cmapCoverage {
 
 // parseCodespace records the byte-width of the first codespace range
 // it encounters. Multiple ranges are allowed by the CMap spec; for
-// MH-10-002 we only need the width, and producers almost always
+// UA-10-002 we only need the width, and producers almost always
 // declare a single range. Reads up to "endcodespacerange".
 func parseCodespace(src []byte, i int, out *cmapCoverage) int {
 	for {

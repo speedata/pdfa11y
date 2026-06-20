@@ -27,7 +27,7 @@ type DocumentNamespace struct{}
 
 const pdf2Namespace = "http://iso.org/pdf2/ssn"
 
-func (DocumentNamespace) ID() string                { return "MH-01-008" }
+func (DocumentNamespace) ID() string                { return "UA-01-008" }
 func (DocumentNamespace) Title() string             { return "PDF/UA-2 Document structure element is in the PDF 2.0 namespace" }
 func (DocumentNamespace) Category() engine.Category { return engine.CategoryStructure }
 func (DocumentNamespace) Severity() engine.Severity { return engine.SeverityError }
@@ -70,7 +70,7 @@ func (c DocumentNamespace) Run(doc model.Document) []engine.Finding {
 	}
 	if root.Type() != "Document" {
 		// StructTreeRoot's only child should be Document, but if
-		// it is not, MH-31-008 (custom-types) or the structural
+		// it is not, UA-31-008 (custom-types) or the structural
 		// containment rules will fire elsewhere. We do not
 		// duplicate that diagnosis.
 		return []engine.Finding{{

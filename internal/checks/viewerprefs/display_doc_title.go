@@ -15,7 +15,7 @@ import (
 // metadata is invisible to users of assistive technology.
 type DisplayDocTitle struct{}
 
-func (DisplayDocTitle) ID() string    { return "MH-07-001" }
+func (DisplayDocTitle) ID() string    { return "UA-07-001" }
 func (DisplayDocTitle) Title() string { return "ViewerPreferences/DisplayDocTitle is true" }
 func (DisplayDocTitle) Description() string {
 	return "Conforming viewers must show the document title (not the file name) in their window title bar. This is controlled by /ViewerPreferences<</DisplayDocTitle true>> on the catalog; without it the document title declared in metadata is invisible to users of assistive technology."

@@ -54,7 +54,7 @@ func TestLangCoverage_CatalogLang(t *testing.T) {
 }
 
 // TestLangCoverage_NoStructTree asserts the check declines on an
-// untagged document. MH-01-005 covers the missing-struct-tree
+// untagged document. UA-01-005 covers the missing-struct-tree
 // failure mode; here we only want N/A.
 func TestLangCoverage_NoStructTree(t *testing.T) {
 	doc, err := pdf.LoadFile("../structure/testdata/untagged.pdf")

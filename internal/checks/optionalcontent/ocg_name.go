@@ -18,7 +18,7 @@ import (
 // labelled with a synthetic identifier that is not meaningful.
 type OCGName struct{}
 
-func (OCGName) ID() string                { return "MH-20-001" }
+func (OCGName) ID() string                { return "UA-20-001" }
 func (OCGName) Title() string             { return "Optional Content Groups declare /Name" }
 func (OCGName) Category() engine.Category { return engine.CategoryOptionalContent }
 func (OCGName) Severity() engine.Severity { return engine.SeverityError }

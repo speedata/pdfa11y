@@ -17,7 +17,7 @@ import (
 // to a separate check so each rule keeps a single responsibility.
 type Structure struct{}
 
-func (Structure) ID() string    { return "MH-16-001" }
+func (Structure) ID() string    { return "UA-16-001" }
 func (Structure) Title() string { return "List contains list items (LI)" }
 func (Structure) Description() string {
 	return "Lists must use the canonical L -> LI -> (Lbl|LBody) tagging pattern. A list whose children are paragraphs (rather than LI) is unannouncable as a list to assistive technology -- the user hears flat content instead of an enumeration."

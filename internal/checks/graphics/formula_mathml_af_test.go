@@ -29,8 +29,8 @@ func TestFormulaMathMLSubtype(t *testing.T) {
 		},
 		{
 			"Supplement AF with correct subtype but wrong relationship is N/A here",
-			// the AF is /Source, so no /Supplement to inspect -- MH-17-002
-			// is N/A; MH-17-003 catches it instead.
+			// the AF is /Source, so no /Supplement to inspect -- UA-17-002
+			// is N/A; UA-17-003 catches it instead.
 			"testdata/formula-mathml-wrong-relationship.pdf",
 			engine.VerdictNA,
 			1,
@@ -83,7 +83,7 @@ func TestFormulaMathMLRelationship(t *testing.T) {
 		{
 			"AF with /Supplement but wrong subtype is N/A here",
 			// no AF carries the application/mathml+xml subtype, so this
-			// check has nothing to inspect; MH-17-002 catches it instead.
+			// check has nothing to inspect; UA-17-002 catches it instead.
 			"testdata/formula-mathml-wrong-subtype.pdf",
 			engine.VerdictNA,
 			1,

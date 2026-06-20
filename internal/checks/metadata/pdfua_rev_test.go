@@ -25,7 +25,7 @@ func TestPDFUARevision(t *testing.T) {
 			engine.VerdictFail,
 		},
 		{
-			"no XMP metadata is N/A (MH-06-003 already handles it)",
+			"no XMP metadata is N/A (UA-06-003 already handles it)",
 			"testdata/no-pdfua-id.pdf",
 			engine.VerdictNA,
 		},

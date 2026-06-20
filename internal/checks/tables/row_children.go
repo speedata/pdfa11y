@@ -19,7 +19,7 @@ import (
 // degenerate but not actively wrong.
 type RowChildren struct{}
 
-func (RowChildren) ID() string    { return "MH-15-004" }
+func (RowChildren) ID() string    { return "UA-15-004" }
 func (RowChildren) Title() string { return "Table rows contain only TH or TD" }
 func (RowChildren) Description() string {
 	return "Per PDF/UA-1 §7.5 the only valid children of a TR are TH (header cell) and TD (data cell). Other tags between TR and the cell content break the table semantics: AT cannot map content to row/column positions and may drop or misattribute cells."

@@ -26,6 +26,15 @@ func TestNoteNotInUA2(t *testing.T) {
 			"testdata/note-with-id.pdf",
 			engine.VerdictNA,
 		},
+		{
+			// An Aside (valid PDF 2.0 type in the standard namespace)
+			// that is role-mapped to Note for legacy 1.7 viewers must
+			// not be flagged: the declared 2.0 type is authoritative,
+			// the global /RoleMap is only a compatibility hint.
+			"PDF/UA-2 Aside role-mapped to Note passes",
+			"testdata/aside-rolemapped-to-note-ua2.pdf",
+			engine.VerdictPass,
+		},
 	}
 	check := notes.NoteNotInUA2{}
 	for _, tc := range tests {

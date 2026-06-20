@@ -98,7 +98,9 @@ func (s *Severity) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Category groups checks by Matterhorn-style area.
+// Category groups checks by subject area. The leading number mirrors
+// the Matterhorn protocol's schedule grouping (kept as a stable
+// ordering, not a claim of Matterhorn coverage for PDF/UA-2).
 type Category string
 
 const (
@@ -139,7 +141,7 @@ type Finding struct {
 
 // Check is the interface every accessibility rule implements.
 type Check interface {
-	ID() string          // Matterhorn-style identifier, e.g. "MH-01-005"
+	ID() string          // stable identifier "UA-<schedule>-<nnn>", e.g. "UA-01-005" (schedule numbers follow the Matterhorn protocol's grouping)
 	Title() string       // short human-readable summary
 	Description() string // 1-3 sentence explanation: what does this check verify, and why
 	Category() Category

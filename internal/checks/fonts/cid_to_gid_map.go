@@ -25,7 +25,7 @@ import (
 // cases.
 type CIDToGIDMap struct{}
 
-func (CIDToGIDMap) ID() string                { return "MH-31-001" }
+func (CIDToGIDMap) ID() string                { return "UA-31-001" }
 func (CIDToGIDMap) Title() string             { return "CIDFontType2 declares /CIDToGIDMap = Identity or a stream" }
 func (CIDToGIDMap) Category() engine.Category { return engine.CategoryFonts }
 func (CIDToGIDMap) Severity() engine.Severity { return engine.SeverityError }

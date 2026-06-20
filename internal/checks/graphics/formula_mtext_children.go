@@ -17,7 +17,7 @@ import (
 // inside mtext is a tagging error — assistive technology that
 // honours the MathML namespace will not know how to interpret it.
 //
-// Until MH-17-005 introduces /NS-map-based namespace resolution,
+// Until UA-17-005 introduces /NS-map-based namespace resolution,
 // this check operates on a conservative heuristic: it flags only
 // children whose tag matches a known PDF structure type (the names
 // in ISO 32000-2 §14.8.4 / ISO 14289). Children with unknown tag
@@ -29,7 +29,7 @@ import (
 // PDF/UA-2 only.
 type MTextChildren struct{}
 
-func (MTextChildren) ID() string                { return "MH-17-006" }
+func (MTextChildren) ID() string                { return "UA-17-006" }
 func (MTextChildren) Title() string             { return "MathML mtext only carries permitted PDF tag children" }
 func (MTextChildren) Category() engine.Category { return engine.CategoryGraphics }
 func (MTextChildren) Severity() engine.Severity { return engine.SeverityError }
@@ -57,7 +57,7 @@ var mtextWhitelist = map[string]bool{
 // and ISO 14289 grouping/inline/illustration extensions. The list is
 // deliberately not exhaustive — a custom rolemap that introduces a
 // non-standard tag name will read here as "unknown" and pass the
-// check. MH-17-005 will replace this heuristic with namespace-based
+// check. UA-17-005 will replace this heuristic with namespace-based
 // resolution.
 var knownPDFTags = map[string]bool{
 	// Grouping
@@ -120,7 +120,7 @@ func (c MTextChildren) Run(doc model.Document) []engine.Finding {
 			}
 			if !knownPDFTags[t] {
 				// Unknown tag — heuristic punts to "probably MathML",
-				// no finding. MH-17-005 will tighten this.
+				// no finding. UA-17-005 will tighten this.
 				continue
 			}
 			findings = append(findings, engine.Finding{

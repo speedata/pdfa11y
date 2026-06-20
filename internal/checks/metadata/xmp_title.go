@@ -12,19 +12,19 @@ import (
 // be expressed in XMP under the Dublin Core namespace; PDF 2.0 /
 // PDF/UA-2 keep this requirement and additionally deprecate the
 // DocumentInfo dictionary for everything but ModDate, so XMP
-// dc:title is the single normative source. MH-06-005 verifies that
+// dc:title is the single normative source. UA-06-005 verifies that
 // a DocumentInfo /Title (when present) agrees with XMP dc:title;
 // it does not demand that DocumentInfo carry the title at all.
 //
-// Limitation: same regex-on-raw-XMP approach as MH-06-003. A namespace
+// Limitation: same regex-on-raw-XMP approach as UA-06-003. A namespace
 // prefix other than "dc" will yield a false negative; replacing this
 // with a proper XML/namespace-aware parser is a planned cleanup.
 type XMPTitle struct{}
 
-func (XMPTitle) ID() string    { return "MH-06-004" }
+func (XMPTitle) ID() string    { return "UA-06-004" }
 func (XMPTitle) Title() string { return "XMP metadata contains dc:title" }
 func (XMPTitle) Description() string {
-	return "PDF/UA-1 §7.1 requires the document title to be expressed via dc:title in the XMP metadata stream (Dublin Core namespace). PDF 2.0 / PDF/UA-2 keep this requirement and deprecate the DocumentInfo dictionary for everything except ModDate, so XMP dc:title is the normative single source. MH-06-005 still cross-checks DocumentInfo /Title when one happens to be present."
+	return "PDF/UA-1 §7.1 requires the document title to be expressed via dc:title in the XMP metadata stream (Dublin Core namespace). PDF 2.0 / PDF/UA-2 keep this requirement and deprecate the DocumentInfo dictionary for everything except ModDate, so XMP dc:title is the normative single source. UA-06-005 still cross-checks DocumentInfo /Title when one happens to be present."
 }
 func (XMPTitle) Category() engine.Category { return engine.CategoryMetadata }
 func (XMPTitle) Severity() engine.Severity { return engine.SeverityError }

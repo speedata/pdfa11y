@@ -15,7 +15,7 @@ import (
 // numbering, and the H<n> ladder cannot include an unlevelled item.
 type StyleMix struct{}
 
-func (StyleMix) ID() string                { return "MH-14-006" }
+func (StyleMix) ID() string                { return "UA-14-006" }
 func (StyleMix) Title() string             { return "Heading style is consistent (H or H<n>, not both)" }
 func (StyleMix) Category() engine.Category { return engine.CategoryHeadings }
 func (StyleMix) Severity() engine.Severity { return engine.SeverityError }

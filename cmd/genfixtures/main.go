@@ -41,8 +41,8 @@ const xmpUA1 = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 
 // xmpUA1FullID is xmpUA1 plus a pdfuaid:rev so the PDF/UA
 // identification schema is complete per ISO 14289-2 §5. Used by
-// the MH-06-006 passing fixture; xmpUA1 keeps the part-only shape
-// used by MH-06-006's failing fixture and unchanged downstream
+// the UA-06-006 passing fixture; xmpUA1 keeps the part-only shape
+// used by UA-06-006's failing fixture and unchanged downstream
 // callers.
 const xmpUA1FullID = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -138,8 +138,8 @@ func run() error {
 	if err := withUntaggedContent("internal/checks/structure/testdata/untagged-content.pdf"); err != nil {
 		return err
 	}
-	// MH-13-004: Figure has /Alt or /ActualText. Same UA-1 §7.3
-	// asymmetry as MH-17-001 -- empty /Alt fails, empty /ActualText
+	// UA-13-004: Figure has /Alt or /ActualText. Same UA-1 §7.3
+	// asymmetry as UA-17-001 -- empty /Alt fails, empty /ActualText
 	// passes (decorative-figure idiom).
 	if err := withFigure("internal/checks/graphics/testdata/figure-with-alt.pdf",
 		figureSpec{alt: strPtr("Sunset over the mountains")}); err != nil {
@@ -209,12 +209,19 @@ func run() error {
 		return err
 	}
 
-	// Annotation fixtures: one passing + one failing pair per MH-28 check.
+	// Annotation fixtures: one passing + one failing pair per UA-28 check.
 	if err := withLinkAnnotation("internal/checks/annotations/testdata/link-with-contents.pdf",
 		"Project documentation"); err != nil {
 		return err
 	}
 	if err := withLinkAnnotation("internal/checks/annotations/testdata/link-no-contents.pdf",
+		""); err != nil {
+		return err
+	}
+	// UA-28-001: in PDF/UA-2 a missing /Contents is only a
+	// recommendation, so the same shape is reported as an advisory
+	// (Info) rather than an error.
+	if err := withLinkAnnotationUA2("internal/checks/annotations/testdata/link-no-contents-ua2.pdf",
 		""); err != nil {
 		return err
 	}
@@ -251,7 +258,7 @@ func run() error {
 		return err
 	}
 
-	// MH-15-004 / MH-15-005: Table row child types and TH /Scope.
+	// UA-15-004 / UA-15-005: Table row child types and TH /Scope.
 	if err := withTableRow("internal/checks/tables/testdata/table-row-cells.pdf",
 		[]string{"TD", "TD"}); err != nil {
 		return err
@@ -273,7 +280,7 @@ func run() error {
 		return err
 	}
 
-	// MH-16-002 / MH-16-003: List item children and /ListNumbering.
+	// UA-16-002 / UA-16-003: List item children and /ListNumbering.
 	if err := withListItem("internal/checks/lists/testdata/list-li-with-lbody.pdf",
 		[]string{"Lbl", "LBody"}); err != nil {
 		return err
@@ -290,7 +297,7 @@ func run() error {
 		""); err != nil {
 		return err
 	}
-	// MH-16-003 escalation: when the list carries Lbl children,
+	// UA-16-003 escalation: when the list carries Lbl children,
 	// ISO 14289-2 §8.2.5.25 makes /ListNumbering a hard "shall".
 	// withListItem with Lbl + LBody under LI but no /ListNumbering
 	// produces the Error variant.
@@ -299,7 +306,7 @@ func run() error {
 		return err
 	}
 
-	// MH-14-006: heading style consistency (no /H + /H<n> mix).
+	// UA-14-006: heading style consistency (no /H + /H<n> mix).
 	if err := withMixedHeadings("internal/checks/headings/testdata/heading-style-hn-only.pdf",
 		[]string{"H1", "H2"}); err != nil {
 		return err
@@ -309,7 +316,7 @@ func run() error {
 		return err
 	}
 
-	// MH-17-001: Formula has /Alt or /ActualText. PDF/UA-1 §7.7 is
+	// UA-17-001: Formula has /Alt or /ActualText. PDF/UA-1 §7.7 is
 	// asymmetric -- empty /Alt fails, empty /ActualText passes
 	// (veraPDF corpus 7.7-t01 pass-c). The fixtures below cover both
 	// halves so the check exercises both code paths.
@@ -333,7 +340,7 @@ func run() error {
 		formulaSpec{actualText: strPtr("")}); err != nil {
 		return err
 	}
-	// MH-17-001 (PDF/UA-2): MathML associated file passes; LaTeX-only AF
+	// UA-17-001 (PDF/UA-2): MathML associated file passes; LaTeX-only AF
 	// (no MathML, no /Alt) fails — the BPG "Use of Associated files"
 	// pattern requires MathML as the supplement.
 	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-af.pdf",
@@ -344,7 +351,7 @@ func run() error {
 		afSpec{rel: "Source", subtype: "application/x-tex", filename: "math.tex"}); err != nil {
 		return err
 	}
-	// MH-17-002 / MH-17-003 failure fixtures: AF on a Formula with one
+	// UA-17-002 / UA-17-003 failure fixtures: AF on a Formula with one
 	// half of the (AFRelationship=/Supplement, Subtype=application/mathml+xml)
 	// pair declared wrong. The "wrong-subtype" file declares the right
 	// relationship but the wrong Subtype; "wrong-relationship" is the
@@ -357,7 +364,7 @@ func run() error {
 		afSpec{rel: "Source", subtype: "application/mathml+xml", filename: "math.xml"}); err != nil {
 		return err
 	}
-	// MH-17-004: MathML AF stream content failure modes. Filespec
+	// UA-17-004: MathML AF stream content failure modes. Filespec
 	// metadata is identical to the passing fixture above; only the
 	// embedded stream's bytes differ.
 	if err := withFormulaUA2AF("internal/checks/graphics/testdata/formula-mathml-empty.pdf",
@@ -380,7 +387,7 @@ func run() error {
 			content: []byte(`<math xmlns="http://example.org/wrong"><mi>x</mi></math>`)}); err != nil {
 		return err
 	}
-	// MH-17-006: mtext children whitelist. Variant A of BPG math
+	// UA-17-006: mtext children whitelist. Variant A of BPG math
 	// representation (math struct child) lets us exercise mtext
 	// directly. Three fixtures cover the cases: whitelisted PDF tag
 	// child (Span), non-whitelisted known PDF tag child (P), and an
@@ -397,7 +404,7 @@ func run() error {
 		"mi"); err != nil {
 		return err
 	}
-	// MH-17-005: math struct child namespace. Three fixtures cover:
+	// UA-17-005: math struct child namespace. Three fixtures cover:
 	// /NS resolves to the W3C MathML URI (PASS), /NS resolves to a
 	// different URI (FAIL), and /NS is absent entirely (FAIL).
 	if err := withFormulaMathNamespace("internal/checks/graphics/testdata/formula-math-ns-mathml.pdf",
@@ -412,14 +419,14 @@ func run() error {
 		""); err != nil {
 		return err
 	}
-	// MH-17-015: math must have a Formula ancestor. The stranded
+	// UA-17-015: math must have a Formula ancestor. The stranded
 	// fixture places math directly under Document, skipping Formula.
 	if err := withMathWithoutFormula(
 		"internal/checks/graphics/testdata/math-stranded.pdf"); err != nil {
 		return err
 	}
 
-	// MH-06-005: DocumentInfo /Title and XMP dc:title agree.
+	// UA-06-005: DocumentInfo /Title and XMP dc:title agree.
 	if err := withTitleAgreement("internal/checks/metadata/testdata/title-agreement-ok.pdf",
 		"Sample", "Sample"); err != nil {
 		return err
@@ -429,7 +436,7 @@ func run() error {
 		return err
 	}
 
-	// MH-20-001: OCG /Name.
+	// UA-20-001: OCG /Name.
 	if err := withOCG("internal/checks/optionalcontent/testdata/ocg-with-name.pdf",
 		"Drawing geometry"); err != nil {
 		return err
@@ -439,7 +446,7 @@ func run() error {
 		return err
 	}
 
-	// MH-27-001: /Outlines on > 21-page documents.
+	// UA-27-001: /Outlines on > 21-page documents.
 	if err := withOutlines("internal/checks/navigation/testdata/outlines-present.pdf",
 		22, true); err != nil {
 		return err
@@ -449,7 +456,7 @@ func run() error {
 		return err
 	}
 
-	// MH-08-001: page /Tabs = S.
+	// UA-08-001: page /Tabs = S.
 	if err := withTabs("internal/checks/taborder/testdata/tabs-s.pdf",
 		"S"); err != nil {
 		return err
@@ -458,34 +465,42 @@ func run() error {
 		"R"); err != nil {
 		return err
 	}
-	// MH-14-009: Note structure type forbidden in PDF/UA-2.
+	// UA-14-009: Note structure type forbidden in PDF/UA-2.
 	if err := withNoteUA2(
 		"internal/checks/notes/testdata/note-in-ua2.pdf"); err != nil {
 		return err
 	}
-	// MH-28-010: XFA forms forbidden in PDF/UA-2.
+	// UA-14-009 regression: an Aside (a valid PDF 2.0 type in the
+	// standard namespace) that is role-mapped to Note for legacy 1.7
+	// viewers must NOT be treated as a Note. The 2.0 type is
+	// authoritative; the global /RoleMap is only a compatibility hint.
+	if err := withAsideRolemappedToNoteUA2(
+		"internal/checks/notes/testdata/aside-rolemapped-to-note-ua2.pdf"); err != nil {
+		return err
+	}
+	// UA-28-010: XFA forms forbidden in PDF/UA-2.
 	if err := withXFAUA2(
 		"internal/checks/annotations/testdata/xfa-in-ua2.pdf"); err != nil {
 		return err
 	}
-	// MH-28-009: deprecated annotation types forbidden in PDF/UA-2.
+	// UA-28-009: deprecated annotation types forbidden in PDF/UA-2.
 	if err := withDeprecatedAnnotUA2(
 		"internal/checks/annotations/testdata/sound-in-ua2.pdf",
 		"Sound"); err != nil {
 		return err
 	}
-	// MH-14-007: untyped H structure type forbidden in PDF/UA-2.
+	// UA-14-007: untyped H structure type forbidden in PDF/UA-2.
 	if err := withHeadingUA2(
 		"internal/checks/headings/testdata/heading-untyped-h-ua2.pdf",
 		"H"); err != nil {
 		return err
 	}
-	// MH-20-002: AS key in OCProperties/D forbidden in PDF/UA-2.
+	// UA-20-002: AS key in OCProperties/D forbidden in PDF/UA-2.
 	if err := withOCASUA2(
 		"internal/checks/optionalcontent/testdata/ocg-with-as-ua2.pdf"); err != nil {
 		return err
 	}
-	// MH-01-008: Document structure element in PDF 2.0 namespace.
+	// UA-01-008: Document structure element in PDF 2.0 namespace.
 	if err := withDocumentNamespaceUA2(
 		"internal/checks/structure/testdata/document-ns-pdf2.pdf",
 		"http://iso.org/pdf2/ssn"); err != nil {
@@ -513,7 +528,7 @@ func run() error {
 		return err
 	}
 
-	// MH-26-001: encryption permits accessibility extraction.
+	// UA-26-001: encryption permits accessibility extraction.
 	if err := withPermissions("internal/checks/security/testdata/encrypted-allow-access.pdf",
 		true); err != nil {
 		return err
@@ -523,7 +538,7 @@ func run() error {
 		return err
 	}
 
-	// MH-28-007: AcroForm widget linked from the structure tree.
+	// UA-28-007: AcroForm widget linked from the structure tree.
 	if err := withAcroFormField("internal/checks/annotations/testdata/acroform-linked.pdf",
 		true); err != nil {
 		return err
@@ -533,7 +548,7 @@ func run() error {
 		return err
 	}
 
-	// MH-11-002: per-element /Lang coverage when Catalog /Lang is absent.
+	// UA-11-002: per-element /Lang coverage when Catalog /Lang is absent.
 	if err := withLangCoverage("internal/checks/language/testdata/lang-coverage-ok.pdf",
 		"en-US"); err != nil {
 		return err
@@ -543,7 +558,7 @@ func run() error {
 		return err
 	}
 
-	// MH-19-001: Note carries /ID; /Ref targets resolve to /ID-bearing
+	// UA-19-001: Note carries /ID; /Ref targets resolve to /ID-bearing
 	// structure elements.
 	if err := withNote("internal/checks/notes/testdata/note-with-id.pdf",
 		"n1"); err != nil {
@@ -557,7 +572,7 @@ func run() error {
 		return err
 	}
 
-	// MH-09-003: Type 1 fonts removed by PDF 2.0 / PDF/UA-2.
+	// UA-09-003: Type 1 fonts removed by PDF 2.0 / PDF/UA-2.
 	if err := withFontAndUA2("internal/checks/fonts/testdata/truetype-in-ua2.pdf",
 		"TrueType", "PDFA11YTestTT"); err != nil {
 		return err
@@ -567,7 +582,7 @@ func run() error {
 		return err
 	}
 
-	// MH-31-001: CIDFontType2 declares /CIDToGIDMap = Identity or stream.
+	// UA-31-001: CIDFontType2 declares /CIDToGIDMap = Identity or stream.
 	if err := withCIDFontType2("internal/checks/fonts/testdata/cid-identity.pdf",
 		"Identity"); err != nil {
 		return err
@@ -577,7 +592,7 @@ func run() error {
 		return err
 	}
 
-	// MH-12-001: Associated Files declare /AFRelationship.
+	// UA-12-001: Associated Files declare /AFRelationship.
 	if err := withAssociatedFile("internal/checks/files/testdata/af-with-relationship.pdf",
 		"Source"); err != nil {
 		return err
@@ -870,7 +885,7 @@ func withParentChildren(dst, parentType string, childTypes ...string) error {
 // withRoleMappedHeading writes a tagged PDF that uses a custom structure
 // type "MyHeading" role-mapped to H1, followed by H3. With role-map
 // resolution working, the structure should be read as H1 -> H3 and
-// trigger MH-14-003 (level skip). Without resolution the custom type
+// trigger UA-14-003 (level skip). Without resolution the custom type
 // would be ignored and the level skip undetected -- the fixture is
 // therefore a regression net for the role-mapping plumbing.
 func withRoleMappedHeading(dst string) error {
@@ -938,7 +953,7 @@ func withRoleMappedHeading(dst string) error {
 // withHeadings derives a tagged PDF whose Document StructElem has one
 // H<level> child per entry in levels, in order. Used to build both the
 // well-nested (levels = 1,2,3) and the level-skipping (levels = 1,3)
-// fixtures for MH-14-003.
+// fixtures for UA-14-003.
 func withHeadings(dst string, levels []int) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -999,8 +1014,8 @@ func withHeadings(dst string, levels []int) error {
 }
 
 // figureSpec mirrors formulaSpec: nil means "entry absent", a non-nil
-// pointer to "" means "entry present but empty". MH-13-004 treats
-// /Alt and /ActualText with the same asymmetry as MH-17-001 -- empty
+// pointer to "" means "entry present but empty". UA-13-004 treats
+// /Alt and /ActualText with the same asymmetry as UA-17-001 -- empty
 // /Alt fails, empty /ActualText passes ("render as silence").
 type figureSpec struct {
 	alt        *string
@@ -1288,7 +1303,7 @@ func writeBlankPDF(dst string) error {
 // Writer strips the filespec during validation -- the minimal four-
 // object layout (Catalog, Pages, Page, Filespec) is identical to
 // writeBlankPDF plus the /AF reference. When relationship is
-// non-empty the filespec declares /AFRelationship (the MH-12-001
+// non-empty the filespec declares /AFRelationship (the UA-12-001
 // passing case); otherwise the entry is omitted (failing case).
 // The embedded file stream itself is intentionally absent -- the
 // check inspects only the filespec dictionary's /AFRelationship.
@@ -1339,7 +1354,7 @@ func withAssociatedFile(dst, relationship string) error {
 // subtype, the filename, and an optional explicit stream payload.
 // When content is nil, withFormulaUA2AF picks a minimal payload
 // per subtype (a tiny MathML fragment for application/mathml+xml,
-// a literal "$x$" for x-tex). Tests for MH-17-004 pass an explicit
+// a literal "$x$" for x-tex). Tests for UA-17-004 pass an explicit
 // content (empty, malformed XML, wrong root, wrong namespace) to
 // exercise the content-validation paths.
 type afSpec struct {
@@ -1354,12 +1369,12 @@ type afSpec struct {
 // carries /AF [filespecRef]. The filespec resolves to an
 // EmbeddedFile stream whose /Subtype is the supplied MIME type and
 // whose /AFRelationship is the supplied name. The XMP Metadata
-// stream declares pdfuaid:part = 2 so MH-17-001's spec autodetect
+// stream declares pdfuaid:part = 2 so UA-17-001's spec autodetect
 // runs the UA-2 branch.
 //
 // Written by hand because the path goes through several object
 // types pdfcpu's Writer is happy to rearrange or strip; the
-// MH-12-001 fixture took the same approach for the same reason.
+// UA-12-001 fixture took the same approach for the same reason.
 func withFormulaUA2AF(dst string, af afSpec) error {
 	streamContent := af.content
 	if streamContent == nil {
@@ -1453,7 +1468,7 @@ func withFormulaUA2AF(dst string, af afSpec) error {
 // withFormulaMTextChildren writes a PDF/UA-2-flavoured one-page
 // document with a Document → Formula → math → mtext → <childTag>
 // structure tree. The XMP Metadata stream declares
-// pdfuaid:part = 2 so MH-17-006's spec autodetect runs the UA-2
+// pdfuaid:part = 2 so UA-17-006's spec autodetect runs the UA-2
 // branch. The check inspects mtext's children and decides per
 // childTag whether the document conforms; we only need to vary
 // that single leaf to exercise every branch (whitelisted,
@@ -1530,7 +1545,7 @@ func withFormulaMTextChildren(dst, childTag string) error {
 // rather than a direct /A entry: TH has /C /TH-col, and
 // StructTreeRoot has /ClassMap << /TH-col << /O /Table /Scope
 // /Column >> >>. ISO 32000-1 §14.7.5.3/4 says both routes are
-// equivalent; MH-15-005 must accept either.
+// equivalent; UA-15-005 must accept either.
 //
 // Written by hand because pdfcpu's withTablePattern was built
 // before ClassMap support landed in the fixture set; extending
@@ -1576,7 +1591,7 @@ func withTableHeaderClassMap(dst string) error {
 // withMathWithoutFormula writes a PDF/UA-2 document whose
 // structure tree contains a `math` element (in the MathML
 // namespace) placed directly under Document, with no Formula
-// ancestor. MH-17-015 fires on this layout.
+// ancestor. UA-17-015 fires on this layout.
 func withMathWithoutFormula(dst string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -1632,7 +1647,7 @@ func withMathWithoutFormula(dst string) error {
 // Document → Formula → math structure tree where math optionally
 // declares /NS pointing at a Namespace dictionary carrying the
 // supplied URI. When nsURI is empty the math element gets no /NS
-// entry, exercising the "no namespace" failure path of MH-17-005.
+// entry, exercising the "no namespace" failure path of UA-17-005.
 func withFormulaMathNamespace(dst, nsURI string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -1718,8 +1733,8 @@ func withFormulaMathNamespace(dst, nsURI string) error {
 
 // withCIDFontType2 builds a Type 0 composite font whose descendant
 // is a CIDFontType2 with the given /CIDToGIDMap Name value (e.g.
-// "Identity" for the passing case, "Other" for the MH-31-001
-// failure case). The font program is embedded so MH-09-001 stays
+// "Identity" for the passing case, "Other" for the UA-31-001
+// failure case). The font program is embedded so UA-09-001 stays
 // quiet on the fixture.
 func withCIDFontType2(dst, cidToGIDMap string) error {
 	ctx, err := api.ReadContextFile(basePath)
@@ -1809,7 +1824,7 @@ func withCIDFontType2(dst, cidToGIDMap string) error {
 }
 
 // xmpUA2 declares pdfuaid:part = 2, the PDF/UA-2 conformance marker.
-// Used by the MH-09-003 fixtures, which must satisfy the check's
+// Used by the UA-09-003 fixtures, which must satisfy the check's
 // in-body gate (pdfua.DetectPart == 2) to exercise the Type-1
 // failure path at all.
 const xmpUA2 = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -1825,11 +1840,11 @@ const xmpUA2 = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 
 // withFontAndUA2 attaches a single synthetic font of the requested
 // /Subtype (e.g. "Type1", "TrueType") to the first page and declares
-// pdfuaid:part = 2 in the XMP metadata stream. MH-09-003 fires on
+// pdfuaid:part = 2 in the XMP metadata stream. UA-09-003 fires on
 // "Type1" / "MMType1" subtypes when the document declares UA-2.
 //
 // The font is embedded (FontFile / FontFile2 / FontFile3 depending
-// on subtype) so the fixture does not also trip MH-09-001.
+// on subtype) so the fixture does not also trip UA-09-001.
 func withFontAndUA2(dst, subtype, baseFont string) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -1927,7 +1942,7 @@ func withFontAndUA2(dst, subtype, baseFont string) error {
 }
 
 // withNote builds Document → Note. When id is non-empty the Note
-// carries /ID; otherwise the entry is omitted -- the MH-19-001
+// carries /ID; otherwise the entry is omitted -- the UA-19-001
 // half-A failure pattern.
 func withNote(dst, id string) error {
 	ctx, err := api.ReadContextFile(basePath)
@@ -1986,7 +2001,7 @@ func withNote(dst, id string) error {
 
 // withReferenceToBareP builds Document → [Note(/ID="n1"), P, Reference].
 // The Reference's /Ref array points at the P (which carries no /ID),
-// so MH-19-001's half B emits a finding while the Note itself passes.
+// so UA-19-001's half B emits a finding while the Note itself passes.
 func withReferenceToBareP(dst string) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -2063,7 +2078,7 @@ func withReferenceToBareP(dst string) error {
 
 // withLangCoverage builds a tagged PDF with no Catalog /Lang and a
 // single P StructElem. When lang is non-empty, the P carries /Lang
-// (MH-11-002 passes); empty lang omits the entry and the P inherits
+// (UA-11-002 passes); empty lang omits the entry and the P inherits
 // nothing -- the failure path. Catalog /Lang is deliberately omitted
 // so the check enters its per-element branch instead of declining.
 func withLangCoverage(dst, lang string) error {
@@ -2123,7 +2138,7 @@ func withLangCoverage(dst, lang string) error {
 
 // withAcroFormField attaches a single AcroForm field whose merged
 // widget annotation sits on the first page. When linked is true the
-// widget carries /StructParent (the MH-28-007 passing case);
+// widget carries /StructParent (the UA-28-007 passing case);
 // otherwise /StructParent is omitted -- the failure pattern. The
 // fixture also wires the widget into the page's /Annots so it looks
 // like a realistic form field rather than an orphan AcroForm entry.
@@ -2177,7 +2192,7 @@ func withAcroFormField(dst string, linked bool) error {
 
 // withOCG adds an Optional Content Group to the catalog. When name is
 // non-empty, the OCG carries /Name; otherwise /Name is omitted -- the
-// MH-20-001 failure pattern.
+// UA-20-001 failure pattern.
 func withOCG(dst, name string) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -2206,7 +2221,7 @@ func withOCG(dst, name string) error {
 }
 
 // withOutlines produces a multi-page PDF whose page count exceeds the
-// MH-27-001 threshold (21). When withTree is true, the catalog carries
+// UA-27-001 threshold (21). When withTree is true, the catalog carries
 // an /Outlines dictionary with one /First entry; otherwise the entry
 // is omitted -- the failing path.
 func withOutlines(dst string, pageCount int, withTree bool) error {
@@ -2250,7 +2265,7 @@ func withOutlines(dst string, pageCount int, withTree bool) error {
 // extendPages grows the page tree to total pages by appending fresh
 // Page dicts that mirror the base page's MediaBox. The /Pages /Count
 // is updated to match. Used by the Outlines fixture to clear the
-// page-count threshold MH-27-001 enforces.
+// page-count threshold UA-27-001 enforces.
 func extendPages(xrt *pdfmodel.XRefTable, total int) error {
 	pagesRef, err := xrt.Pages()
 	if err != nil {
@@ -2280,7 +2295,7 @@ func extendPages(xrt *pdfmodel.XRefTable, total int) error {
 }
 
 // withTabs sets /Tabs on the first page to tabs ("S", "R", "C").
-// MH-08-001 passes only on "S".
+// UA-08-001 passes only on "S".
 func withTabs(dst, tabs string) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -2306,7 +2321,7 @@ func withTabs(dst, tabs string) error {
 
 // withDocumentNamespaceUA2 writes a minimal PDF/UA-2 document whose
 // root Document structure element declares the supplied namespace
-// URI via /NS. MH-01-008 passes when nsURI is the PDF 2.0
+// URI via /NS. UA-01-008 passes when nsURI is the PDF 2.0
 // namespace (http://iso.org/pdf2/ssn) and fails for any other URI.
 func withDocumentNamespaceUA2(dst, nsURI string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -2360,7 +2375,7 @@ func withDocumentNamespaceUA2(dst, nsURI string) error {
 
 // withOCASUA2 writes a minimal PDF/UA-2 document with an
 // OCProperties/D configuration dictionary that carries an /AS
-// entry. MH-20-002 fires on this layout.
+// entry. UA-20-002 fires on this layout.
 func withOCASUA2(dst string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -2407,7 +2422,7 @@ func withOCASUA2(dst string) error {
 }
 
 // withHeadingUA2 writes a minimal PDF/UA-2 document whose
-// structure tree is Document → <headingType>. Used by MH-14-007
+// structure tree is Document → <headingType>. Used by UA-14-007
 // to drive the untyped-H failure path; passing "H1" instead would
 // produce the passing variant.
 func withHeadingUA2(dst, headingType string) error {
@@ -2462,7 +2477,7 @@ func withHeadingUA2(dst, headingType string) error {
 
 // withDeprecatedAnnotUA2 writes a minimal PDF/UA-2 document with
 // a single annotation of the supplied (deprecated) subtype on
-// page 1. Used by MH-28-009.
+// page 1. Used by UA-28-009.
 func withDeprecatedAnnotUA2(dst, subtype string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -2510,7 +2525,7 @@ func withDeprecatedAnnotUA2(dst, subtype string) error {
 }
 
 // withXFAUA2 writes a minimal PDF/UA-2 document whose Catalog
-// /AcroForm carries an /XFA entry, exercising MH-28-010. The XFA
+// /AcroForm carries an /XFA entry, exercising UA-28-010. The XFA
 // payload is a one-byte stub; the check only inspects the
 // presence of the entry, not its contents.
 func withXFAUA2(dst string) error {
@@ -2560,7 +2575,7 @@ func withXFAUA2(dst string) error {
 
 // withNoteUA2 writes a minimal PDF/UA-2 document with a Document
 // → Note structure tree where Note lives in the default PDF
-// structure namespace. MH-14-009 fires on this fixture; an
+// structure namespace. UA-14-009 fires on this fixture; an
 // equivalent FENote-based document would pass.
 func withNoteUA2(dst string) error {
 	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -2611,9 +2626,124 @@ func withNoteUA2(dst string) error {
 	return nil
 }
 
+// withAsideRolemappedToNoteUA2 writes a PDF/UA-2 document whose
+// structure tree is Document → Aside, where the Aside element declares
+// the PDF 2.0 standard structure namespace via /NS, and the
+// StructTreeRoot carries a global /RoleMap that maps Aside → Note (the
+// pattern producers use so legacy PDF 1.7 viewers, which have no Aside,
+// still render something). UA-14-009 must not flag this as a forbidden
+// Note: the declared 2.0 type is authoritative and the role map is only
+// a compatibility hint (ISO 14289-2 §8.2.5.14 Note 1).
+func withAsideRolemappedToNoteUA2(dst string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 7 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n")
+	off4 := offset()
+	buf.WriteString("4 0 obj\n<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> /RoleMap << /Aside /Note >> >>\nendobj\n")
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /StructElem /S /Document /P 4 0 R /K 6 0 R >>\nendobj\n")
+	off6 := offset()
+	buf.WriteString("6 0 obj\n<< /Type /StructElem /S /Aside /P 5 0 R /Pg 3 0 R /NS 8 0 R >>\nendobj\n")
+	off7 := offset()
+	fmt.Fprintf(&buf,
+		"7 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+	off8 := offset()
+	buf.WriteString("8 0 obj\n<< /Type /Namespace /NS (http://iso.org/pdf2/ssn) >>\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 9\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5, off6, off7, off8} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 9 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withLinkAnnotationUA2 writes a minimal PDF/UA-2 document (XMP
+// declares pdfuaid:part = 2) with a single Link annotation on the
+// page. When contents is empty the /Contents entry is omitted, which
+// UA-28-001 reports as an advisory (Info) under UA-2 rather than the
+// error it raises under UA-1.
+func withLinkAnnotationUA2(dst, contents string) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	contentsEntry := ""
+	if contents != "" {
+		contentsEntry = fmt.Sprintf(" /Contents (%s)", contents)
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	offset := func() int { return buf.Len() }
+
+	off1 := offset()
+	buf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /Metadata 5 0 R >>\nendobj\n")
+	off2 := offset()
+	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
+	off3 := offset()
+	buf.WriteString("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Annots [4 0 R] >>\nendobj\n")
+	off4 := offset()
+	fmt.Fprintf(&buf,
+		"4 0 obj\n<< /Type /Annot /Subtype /Link /Rect [72 700 200 720]%s >>\nendobj\n", contentsEntry)
+	off5 := offset()
+	fmt.Fprintf(&buf,
+		"5 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := offset()
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5} {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	buf.WriteString("trailer\n<< /Size 6 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
 // withTabsUA2 writes a minimal PDF/UA-2 document (XMP declares
 // pdfuaid:part = 2) with /Tabs set to the supplied value on a
-// single page. Used by MH-08-001 to drive the UA-2 branch of the
+// single page. Used by UA-08-001 to drive the UA-2 branch of the
 // check (which accepts S, A, W) without disturbing the legacy
 // UA-1 fixtures that withTabs already produces.
 func withTabsUA2(dst, tabs string) error {
@@ -2664,7 +2794,7 @@ func withTabsUA2(dst, tabs string) error {
 // withPermissions writes the base PDF, then re-encrypts it with
 // pdfcpu's standard security handler. allowAccess toggles the PDF/UA
 // accessibility bit (/P bit 10). When false, every permission is
-// cleared so the resulting fixture exercises the MH-26-001 failure
+// cleared so the resulting fixture exercises the UA-26-001 failure
 // path. Encryption uses an empty user password (pdfdisassembler opens
 // such documents without prompting) and a fixed owner password.
 func withPermissions(dst string, allowAccess bool) error {
@@ -2690,7 +2820,7 @@ func withPermissions(dst string, allowAccess bool) error {
 
 // withMixedHeadings builds Document → [headingTypes...] where each
 // entry is an explicit structure type like "H", "H1", "H2". Used by
-// MH-14-006 to assemble both the pure-/H<n> fixture and the mixed
+// UA-14-006 to assemble both the pure-/H<n> fixture and the mixed
 // /H + /H<n> failure fixture.
 func withMixedHeadings(dst string, headingTypes []string) error {
 	ctx, err := api.ReadContextFile(basePath)
@@ -2831,7 +2961,7 @@ func withFormula(dst string, spec formulaSpec) error {
 
 // withTitleAgreement writes a PDF that carries BOTH a DocumentInfo
 // /Title and an XMP dc:title. The two strings can be equal (the
-// MH-06-005 passing case) or distinct (the failing case). Implemented
+// UA-06-005 passing case) or distinct (the failing case). Implemented
 // as a single pass over the base PDF -- using AddPropertiesFile +
 // withMetadataStream sequentially would not stack because each builder
 // reads from basePath, not from the previous step's output.
@@ -2894,7 +3024,7 @@ func withTitleAgreement(dst, infoTitle, xmpTitle string) error {
 }
 
 // withTableRow builds a tagged PDF whose structure tree is Document →
-// Table → TR → [rowChildTypes...]. MH-15-004 fails when a TR carries a
+// Table → TR → [rowChildTypes...]. UA-15-004 fails when a TR carries a
 // non-cell child (anything other than TH or TD); the fixture varies
 // only the rowChildTypes vector.
 func withTableRow(dst string, rowChildTypes []string) error {
@@ -2903,7 +3033,7 @@ func withTableRow(dst string, rowChildTypes []string) error {
 
 // withTableHeader builds Document → Table → TR → TH. When scope is
 // non-empty, the TH carries /A << /O /Table /Scope <scope> >>. With
-// scope == "" the /A entry is omitted entirely -- the MH-15-005
+// scope == "" the /A entry is omitted entirely -- the UA-15-005
 // failure pattern.
 func withTableHeader(dst, scope string) error {
 	var attr types.Dict
@@ -3002,7 +3132,7 @@ func withTablePattern(dst string, rowChildTypes []string, childAttrs map[int]typ
 	return writeAndLog(ctx, dst)
 }
 
-// withListItem builds Document → L → LI → [itemChildTypes...]. MH-16-002
+// withListItem builds Document → L → LI → [itemChildTypes...]. UA-16-002
 // fails when the LI has no LBody among its direct children.
 func withListItem(dst string, itemChildTypes []string) error {
 	return withListPattern(dst, "", itemChildTypes)
@@ -3010,7 +3140,7 @@ func withListItem(dst string, itemChildTypes []string) error {
 
 // withListNumbering builds Document → L → LI → LBody and sets
 // /A << /O /List /ListNumbering <numbering> >> on the L when numbering
-// is non-empty. The empty case omits /A -- the MH-16-003 warning
+// is non-empty. The empty case omits /A -- the UA-16-003 warning
 // pattern.
 func withListNumbering(dst, numbering string) error {
 	return withListPattern(dst, numbering, []string{"LBody"})
@@ -3107,7 +3237,7 @@ func withListPattern(dst, numbering string, itemChildTypes []string) error {
 // withAnnotation attaches a single annotation dict to the first page's
 // /Annots array. Used by the per-subtype wrappers below; the base PDF
 // itself carries no annotations, so the resulting fixture exposes
-// exactly one annotation to the MH-28 walker.
+// exactly one annotation to the UA-28 walker.
 func withAnnotation(dst string, annot types.Dict) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
@@ -3144,7 +3274,7 @@ func onPageRect() types.Array {
 
 // withLinkAnnotation builds a Link annotation. When contents is
 // non-empty, the annotation carries /Contents; otherwise the entry is
-// omitted -- the MH-28-001 failure pattern.
+// omitted -- the UA-28-001 failure pattern.
 func withLinkAnnotation(dst, contents string) error {
 	annot := types.Dict{
 		"Type":    types.Name("Annot"),
@@ -3159,7 +3289,7 @@ func withLinkAnnotation(dst, contents string) error {
 
 // withWidgetAnnotation builds a Widget (form field) annotation. When
 // tooltip is non-empty the widget carries /TU; otherwise no tooltip is
-// set anywhere -- the MH-28-003 failure pattern.
+// set anywhere -- the UA-28-003 failure pattern.
 func withWidgetAnnotation(dst, tooltip string) error {
 	annot := types.Dict{
 		"Type":    types.Name("Annot"),
@@ -3175,7 +3305,7 @@ func withWidgetAnnotation(dst, tooltip string) error {
 
 // withTextAnnotation builds a Text (sticky-note) annotation, which is
 // structure-tree-eligible. withStructParent toggles /StructParent --
-// the MH-28-004 hinge.
+// the UA-28-004 hinge.
 func withTextAnnotation(dst string, withStructParent bool) error {
 	annot := types.Dict{
 		"Type":     types.Name("Annot"),
@@ -3191,7 +3321,7 @@ func withTextAnnotation(dst string, withStructParent bool) error {
 
 // withArtifactAnnotation builds a page-furniture annotation (Watermark,
 // PrinterMark, TrapNet). withStructParent toggles /StructParent -- the
-// MH-28-006 hinge: artifact subtypes must NOT carry one.
+// UA-28-006 hinge: artifact subtypes must NOT carry one.
 func withArtifactAnnotation(dst, subtype string, withStructParent bool) error {
 	annot := types.Dict{
 		"Type":    types.Name("Annot"),
@@ -3206,7 +3336,7 @@ func withArtifactAnnotation(dst, subtype string, withStructParent bool) error {
 
 // withOffPageAnnotation builds a Text annotation whose /Rect sits well
 // outside the 612×792 MediaBox. hidden toggles the /F Hidden bit (2);
-// without it MH-28-008 fires. /StructParent is set so MH-28-004 stays
+// without it UA-28-008 fires. /StructParent is set so UA-28-004 stays
 // silent and the fixture isolates the off-page concern.
 func withOffPageAnnotation(dst string, hidden bool) error {
 	annot := types.Dict{

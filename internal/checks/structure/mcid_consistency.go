@@ -29,7 +29,7 @@ import (
 // reported separately so the user knows which side to fix.
 type MCIDConsistency struct{}
 
-func (MCIDConsistency) ID() string                { return "MH-02-003" }
+func (MCIDConsistency) ID() string                { return "UA-02-003" }
 func (MCIDConsistency) Title() string             { return "Content-stream MCIDs match the structure tree" }
 func (MCIDConsistency) Category() engine.Category { return engine.CategoryStructure }
 func (MCIDConsistency) Severity() engine.Severity { return engine.SeverityError }

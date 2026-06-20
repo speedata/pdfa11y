@@ -21,13 +21,13 @@ import (
 // to be MathML proper, not some other XML dialect.
 //
 // PDF/UA-2 only: gated via the shared isPDFUA2 helper. This is the
-// content-level companion to MH-17-002 / MH-17-003 (filespec
+// content-level companion to UA-17-002 / UA-17-003 (filespec
 // metadata level). It only inspects AFs whose Subtype the producer
 // already declared as application/mathml+xml -- mis-declared AFs
-// are MH-17-002's territory.
+// are UA-17-002's territory.
 type FormulaMathMLXML struct{}
 
-func (FormulaMathMLXML) ID() string                { return "MH-17-004" }
+func (FormulaMathMLXML) ID() string                { return "UA-17-004" }
 func (FormulaMathMLXML) Title() string             { return "MathML associated file is well-formed XML rooted at <math>" }
 func (FormulaMathMLXML) Category() engine.Category { return engine.CategoryGraphics }
 func (FormulaMathMLXML) Severity() engine.Severity { return engine.SeverityError }
@@ -140,7 +140,7 @@ func validateMathMLStream(content []byte) string {
 
 // mathMLNamespace is the W3C MathML namespace URI registered by
 // ISO 32000-2 §14.8.6.3. Defined here (not in formula_alt.go's
-// shared constants) because MH-17-004 is the first check that
+// shared constants) because UA-17-004 is the first check that
 // inspects content rather than metadata.
 const mathMLNamespace = "http://www.w3.org/1998/Math/MathML"
 

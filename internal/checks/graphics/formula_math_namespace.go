@@ -17,12 +17,12 @@ import (
 // named 'math' tag in the default namespace would be treated as a
 // custom (unmapped) type by AT, defeating the inline-MathML route.
 //
-// PDF/UA-2 only. Companion to MH-17-006: 005 verifies the math
+// PDF/UA-2 only. Companion to UA-17-006: 005 verifies the math
 // element's namespace, 006 verifies that PDF-tag children inside
 // MathML's mtext are from the permitted set.
 type MathChildNamespace struct{}
 
-func (MathChildNamespace) ID() string                { return "MH-17-005" }
+func (MathChildNamespace) ID() string                { return "UA-17-005" }
 func (MathChildNamespace) Title() string             { return "math struct child of Formula is in the MathML namespace" }
 func (MathChildNamespace) Category() engine.Category { return engine.CategoryGraphics }
 func (MathChildNamespace) Severity() engine.Severity { return engine.SeverityError }

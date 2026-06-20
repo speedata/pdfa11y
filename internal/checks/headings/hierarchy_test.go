@@ -77,7 +77,7 @@ func TestHierarchy(t *testing.T) {
 }
 
 // TestHierarchy_NoStructTree confirms the check declares itself N/A
-// on an untagged document. The tagging gap belongs to MH-01-005;
+// on an untagged document. The tagging gap belongs to UA-01-005;
 // reporting PASS here would be misleading.
 func TestHierarchy_NoStructTree(t *testing.T) {
 	doc, err := pdf.LoadFile("../structure/testdata/untagged.pdf")

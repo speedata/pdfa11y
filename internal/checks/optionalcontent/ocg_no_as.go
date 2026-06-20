@@ -24,7 +24,7 @@ import (
 // PDF/UA-2 only, gated via pdfua.DetectPart.
 type OCGNoAS struct{}
 
-func (OCGNoAS) ID() string                { return "MH-20-002" }
+func (OCGNoAS) ID() string                { return "UA-20-002" }
 func (OCGNoAS) Title() string             { return "Optional Content default configuration does not declare /AS" }
 func (OCGNoAS) Category() engine.Category { return engine.CategoryOptionalContent }
 func (OCGNoAS) Severity() engine.Severity { return engine.SeverityError }

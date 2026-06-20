@@ -13,7 +13,7 @@ import (
 // Matterhorn: 01-005 (mapped from "01 Real content" — no tags at all).
 type StructTreeRoot struct{}
 
-func (StructTreeRoot) ID() string    { return "MH-01-005" }
+func (StructTreeRoot) ID() string    { return "UA-01-005" }
 func (StructTreeRoot) Title() string { return "Document has a structure tree" }
 func (StructTreeRoot) Description() string {
 	return "A PDF/UA-conforming document must ship a structure tree (Tagged PDF). Without it, assistive technology sees only positioned glyphs -- there is no semantic outline to announce."

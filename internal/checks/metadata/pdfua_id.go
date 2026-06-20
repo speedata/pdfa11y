@@ -20,7 +20,7 @@ import (
 // have more XMP-based checks.
 type PDFUAIdentifier struct{}
 
-func (PDFUAIdentifier) ID() string    { return "MH-06-003" }
+func (PDFUAIdentifier) ID() string    { return "UA-06-003" }
 func (PDFUAIdentifier) Title() string { return "XMP metadata declares PDF/UA identifier" }
 func (PDFUAIdentifier) Description() string {
 	return "ISO 14289 requires the XMP metadata stream to declare pdfuaid:part = 1 (PDF/UA-1) or 2 (PDF/UA-2). Conforming consumers rely on this identifier to recognise the document as PDF/UA-compliant."

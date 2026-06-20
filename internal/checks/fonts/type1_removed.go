@@ -22,7 +22,7 @@ import (
 // positives.
 type Type1Removed struct{}
 
-func (Type1Removed) ID() string                { return "MH-09-003" }
+func (Type1Removed) ID() string                { return "UA-09-003" }
 func (Type1Removed) Title() string             { return "PDF/UA-2 documents do not use Type 1 fonts" }
 func (Type1Removed) Category() engine.Category { return engine.CategoryFonts }
 func (Type1Removed) Severity() engine.Severity { return engine.SeverityError }

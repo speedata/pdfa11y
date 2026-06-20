@@ -17,7 +17,7 @@ import (
 // PDF/UA-2 only, gated via pdfua.DetectPart.
 type XFAForbidden struct{}
 
-func (XFAForbidden) ID() string                { return "MH-28-010" }
+func (XFAForbidden) ID() string                { return "UA-28-010" }
 func (XFAForbidden) Title() string             { return "PDF/UA-2 documents do not contain XFA forms" }
 func (XFAForbidden) Category() engine.Category { return engine.CategoryInteractive }
 func (XFAForbidden) Severity() engine.Severity { return engine.SeverityError }

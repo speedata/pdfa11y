@@ -13,7 +13,7 @@ import (
 // array, returning one AssociatedFile per filespec found. Annotation-
 // and XObject-level /AF arrays are not yet walked; documents using
 // those surfaces (rare today) will produce false negatives for
-// MH-12-001.
+// UA-12-001.
 func (d *document) AssociatedFiles() ([]model.AssociatedFile, error) {
 	var out []model.AssociatedFile
 
@@ -117,7 +117,7 @@ func (d *document) embeddedFileSubtype(fs *pdd.Dict) string {
 // embeddedFileContent resolves /EF/F on the filespec to the
 // EmbeddedFile stream and returns its decoded bytes. Returns nil
 // when /EF is missing, the stream cannot be resolved, or decoding
-// fails -- callers (currently MH-17-004) treat nil as "no content
+// fails -- callers (currently UA-17-004) treat nil as "no content
 // available" rather than retry.
 func (d *document) embeddedFileContent(fs *pdd.Dict) []byte {
 	ef, ok := fs.Dict("EF")

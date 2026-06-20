@@ -69,6 +69,7 @@ func Build(path string, results []engine.Result) Document {
 			Total:         sum.Total,
 			Errors:        sum.Errors,
 			Warnings:      sum.Warnings,
+			Suggestions:   sum.Infos,
 		},
 	}
 	doc.Categories = groupByCategory(results)
@@ -100,10 +101,10 @@ func (d Document) VerdictClass() string { return strings.ToLower(d.Verdict) }
 
 // Summary mirrors engine.Summary with template-friendly field types.
 type Summary struct {
-	Passed, NotApplicable, Failed, Total, Errors, Warnings int
+	Passed, NotApplicable, Failed, Total, Errors, Warnings, Suggestions int
 }
 
-// Category groups Result views under one Matterhorn heading.
+// Category groups Result views under one category heading.
 type Category struct {
 	Name    string
 	Results []Result
@@ -325,7 +326,7 @@ const reportTemplate = `<!DOCTYPE html>
 <body>
 <header>
   <h1>PDF/UA Accessibility Report</h1>
-  <div class="lede">Matterhorn-protocol check results, per document. Click any check to see the full explanation.</div>
+  <div class="lede">PDF/UA conformance check results, per document. Click any check to see the full explanation.</div>
 </header>
 {{range .Documents}}
 <article>
@@ -337,6 +338,7 @@ const reportTemplate = `<!DOCTYPE html>
       {{if .Summary.NotApplicable}}<div class="stat"><span class="stat-value">{{.Summary.NotApplicable}}</span><span class="stat-label">not applicable</span></div>{{end}}
       <div class="stat"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></div>
       <div class="stat"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></div>
+      {{if .Summary.Suggestions}}<div class="stat"><span class="stat-value">{{.Summary.Suggestions}}</span><span class="stat-label">suggestion{{if ne .Summary.Suggestions 1}}s{{end}}</span></div>{{end}}
     </div>
   </div>
   {{range .Categories}}

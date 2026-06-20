@@ -39,7 +39,7 @@ func TestOffPage(t *testing.T) {
 }
 
 // TestOffPage_OnlyOnPage asserts N/A when no annotation in the document
-// sits outside the page box: there is nothing for MH-28-008 to inspect.
+// sits outside the page box: there is nothing for UA-28-008 to inspect.
 func TestOffPage_OnlyOnPage(t *testing.T) {
 	doc, err := pdf.LoadFile("testdata/link-with-contents.pdf")
 	if err != nil {

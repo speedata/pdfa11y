@@ -45,6 +45,7 @@ func Build(path string, results []engine.Result) Document {
 			Total:         sum.Total,
 			Errors:        sum.Errors,
 			Warnings:      sum.Warnings,
+			Suggestions:   sum.Infos,
 		},
 	}
 	doc.Categories = groupByCategory(results)
@@ -164,7 +165,7 @@ type Document struct {
 func (d Document) VerdictClass() string { return strings.ToLower(d.Verdict) }
 
 type Summary struct {
-	Passed, NotApplicable, Failed, Total, Errors, Warnings int
+	Passed, NotApplicable, Failed, Total, Errors, Warnings, Suggestions int
 }
 
 type Category struct {
@@ -261,7 +262,7 @@ const reportTemplate = `{{range $i, $doc := .Documents}}
 <section class="title-page">
   <p class="eyebrow">pdfa11y · PDF/UA accessibility report</p>
   <h1>Accessibility Report</h1>
-  <p class="subtitle">Matterhorn-protocol check results</p>
+  <p class="subtitle">PDF/UA conformance check results</p>
   <p class="filename">{{$doc.Filename}}</p>
 
   <div class="verdict-block verdict-{{$doc.VerdictClass}}">
@@ -274,6 +275,7 @@ const reportTemplate = `{{range $i, $doc := .Documents}}
     {{if $doc.Summary.NotApplicable}}<tr><td class="num">{{$doc.Summary.NotApplicable}}</td><td class="label">not applicable</td></tr>{{end}}
     <tr><td class="num">{{$doc.Summary.Errors}}</td><td class="label">error{{if ne $doc.Summary.Errors 1}}s{{end}}</td></tr>
     <tr><td class="num">{{$doc.Summary.Warnings}}</td><td class="label">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</td></tr>
+    {{if $doc.Summary.Suggestions}}<tr><td class="num">{{$doc.Summary.Suggestions}}</td><td class="label">suggestion{{if ne $doc.Summary.Suggestions 1}}s{{end}}</td></tr>{{end}}
   </table>
 
   <p class="meta">Generated {{$.GeneratedAt}} by pdfa11y{{with $.Version}} v{{.}}{{end}}</p>

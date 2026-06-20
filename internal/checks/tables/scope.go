@@ -18,11 +18,11 @@ import (
 // Valid values: Row, Column, Both.
 //
 // Severity Error: missing /Scope on a TH is a hard PDF/UA failure,
-// distinct from MH-16-003 (ListNumbering) where the spec allows
+// distinct from UA-16-003 (ListNumbering) where the spec allows
 // omission. Here the spec is unambiguous.
 type Scope struct{}
 
-func (Scope) ID() string    { return "MH-15-005" }
+func (Scope) ID() string    { return "UA-15-005" }
 func (Scope) Title() string { return "Table header cells declare /Scope" }
 func (Scope) Description() string {
 	return "Per PDF/UA-1 §7.5 every TH structure element must carry a /Scope attribute (Row, Column or Both) so assistive technology can associate data cells with the correct header. Geometric guessing fails on layouts with column groups, row groups, or multi-level headers."

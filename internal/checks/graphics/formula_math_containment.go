@@ -24,13 +24,13 @@ import (
 //
 // We only flag `math` elements that resolve to the W3C MathML
 // namespace (per StructElement.Namespace()); a stray "math"-named
-// element in the default PDF namespace is MH-31-008's territory
+// element in the default PDF namespace is UA-31-008's territory
 // (custom tag without a role map), not this check's.
 //
 // PDF/UA-2 only.
 type MathContainment struct{}
 
-func (MathContainment) ID() string                { return "MH-17-015" }
+func (MathContainment) ID() string                { return "UA-17-015" }
 func (MathContainment) Title() string             { return "math struct element appears only as a child of Formula" }
 func (MathContainment) Category() engine.Category { return engine.CategoryGraphics }
 func (MathContainment) Severity() engine.Severity { return engine.SeverityError }

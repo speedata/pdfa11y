@@ -17,12 +17,12 @@ import (
 //
 // PDF/UA-2 only: gated via pdfua.DetectPart so engine.All()-based
 // callers see N/A on PDF/UA-1 documents instead of false positives.
-// MH-17-003 is the symmetric check (Subtype right, relationship
+// UA-17-003 is the symmetric check (Subtype right, relationship
 // wrong); together they catch the two ways a producer can
 // half-declare a MathML AF.
 type FormulaMathMLSubtype struct{}
 
-func (FormulaMathMLSubtype) ID() string                { return "MH-17-002" }
+func (FormulaMathMLSubtype) ID() string                { return "UA-17-002" }
 func (FormulaMathMLSubtype) Title() string             { return "MathML associated file declares Subtype = application/mathml+xml" }
 func (FormulaMathMLSubtype) Category() engine.Category { return engine.CategoryGraphics }
 func (FormulaMathMLSubtype) Severity() engine.Severity { return engine.SeverityError }
@@ -95,7 +95,7 @@ func (c FormulaMathMLSubtype) Run(doc model.Document) []engine.Finding {
 // application/mathml+xml AND /Supplement.
 type FormulaMathMLRelationship struct{}
 
-func (FormulaMathMLRelationship) ID() string                { return "MH-17-003" }
+func (FormulaMathMLRelationship) ID() string                { return "UA-17-003" }
 func (FormulaMathMLRelationship) Title() string             { return "MathML associated file declares AFRelationship = /Supplement" }
 func (FormulaMathMLRelationship) Category() engine.Category { return engine.CategoryGraphics }
 func (FormulaMathMLRelationship) Severity() engine.Severity { return engine.SeverityError }
@@ -172,7 +172,7 @@ func isPDFUA2(doc model.Document) bool {
 
 // walkFormulas invokes fn for every Formula structure element under
 // elem, threading the slash-separated structure-tag path through.
-// Shared by the MH-17 family so each check does not re-implement the
+// Shared by the UA-17 family so each check does not re-implement the
 // recursion.
 func walkFormulas(elem model.StructElement, path string, fn func(model.StructElement, string)) {
 	if elem.Type() == "Formula" {

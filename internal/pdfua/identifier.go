@@ -1,8 +1,8 @@
 // Package pdfua holds shared helpers for the PDF/UA identifier in XMP
-// metadata. Both the MH-06-003 check and CLI spec autodetection need to
+// metadata. Both the UA-06-003 check and CLI spec autodetection need to
 // read pdfuaid:part, so the regex lives here once.
 //
-// Limitation: same as MH-06-003. The conventional "pdfuaid" namespace
+// Limitation: same as UA-06-003. The conventional "pdfuaid" namespace
 // prefix is assumed; a non-conventional prefix bound to
 // http://www.aiim.org/pdfua/ns/id/ would be missed.
 package pdfua

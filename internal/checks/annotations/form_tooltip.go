@@ -18,7 +18,7 @@ import (
 // Hidden / NoView widgets are skipped (not user-interactive).
 type FormTooltip struct{}
 
-func (FormTooltip) ID() string                { return "MH-28-003" }
+func (FormTooltip) ID() string                { return "UA-28-003" }
 func (FormTooltip) Title() string             { return "Form fields have /TU tooltip" }
 func (FormTooltip) Category() engine.Category { return engine.CategoryInteractive }
 func (FormTooltip) Severity() engine.Severity { return engine.SeverityError }

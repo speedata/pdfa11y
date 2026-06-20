@@ -1,6 +1,7 @@
 // pdfa11y is a command-line accessibility checker for PDF documents.
-// It runs PDF/UA-1 and PDF/UA-2 conformance checks (Matterhorn protocol
-// subset) and prints a report card per document.
+// It runs the machine-checkable subset of PDF/UA conformance checks
+// (ISO 14289-1 / -2; the Matterhorn protocol is the PDF/UA-1 basis) and
+// prints a report card per document.
 package main
 
 import (

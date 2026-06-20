@@ -31,7 +31,7 @@ import (
 // times.
 type RoleMap struct{}
 
-func (RoleMap) ID() string                { return "MH-31-008" }
+func (RoleMap) ID() string                { return "UA-31-008" }
 func (RoleMap) Title() string             { return "Custom structure types are mapped to standard types" }
 func (RoleMap) Category() engine.Category { return engine.CategoryStructure }
 func (RoleMap) Severity() engine.Severity { return engine.SeverityError }
@@ -132,77 +132,10 @@ func inDefaultPDFNamespace(elem model.StructElement) bool {
 
 // standardStructType reports whether s is one of the PDF structure
 // element types defined by ISO 32000-1, ISO 32000-2 or PDF/UA-2.
-// "Document" appears at the root of every tagged PDF; the rest spans
-// grouping, block, inline, illustration and table categories.
+// The canonical set lives in package model so that role resolution
+// (internal/pdf) and this check share a single source of truth.
 func standardStructType(s string) bool {
-	_, ok := standardTypes[s]
-	return ok
-}
-
-var standardTypes = map[string]struct{}{
-	// Grouping elements
-	"Document":  {},
-	"Part":      {},
-	"Art":       {},
-	"Sect":      {},
-	"Div":       {},
-	"BlockQuote": {},
-	"Caption":   {},
-	"TOC":       {},
-	"TOCI":      {},
-	"Index":     {},
-	"NonStruct": {},
-	"Private":   {},
-	// PDF 2.0 grouping additions
-	"DocumentFragment": {},
-	"Aside":            {},
-	"Title":            {},
-	// Block-level
-	"P":     {},
-	"H":     {},
-	"H1":    {},
-	"H2":    {},
-	"H3":    {},
-	"H4":    {},
-	"H5":    {},
-	"H6":    {},
-	"Hn":    {}, // PDF 2.0 generic heading (level via /Lvl)
-	"L":     {},
-	"LI":    {},
-	"Lbl":   {},
-	"LBody": {},
-	// Inline-level
-	"Span":      {},
-	"Quote":     {},
-	"Note":      {},
-	"Reference": {},
-	"BibEntry":  {},
-	"Code":      {},
-	"Link":      {},
-	"Annot":     {},
-	"Ruby":      {},
-	"RB":        {},
-	"RT":        {},
-	"RP":        {},
-	"Warichu":   {},
-	"WT":        {},
-	"WP":        {},
-	// PDF 2.0 inline additions
-	"Em":     {},
-	"Strong": {},
-	"Sub":    {},
-	// Illustration
-	"Figure":  {},
-	"Formula": {},
-	"Form":    {},
-	// Tables
-	"Table": {},
-	"TR":    {},
-	"TH":    {},
-	"TD":    {},
-	"THead": {},
-	"TBody": {},
-	"TFoot": {},
+	return model.IsStandardStructureType(s)
 }
 
 func init() { engine.Register(RoleMap{}) }

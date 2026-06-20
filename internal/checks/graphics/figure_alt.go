@@ -17,7 +17,7 @@ import (
 // same check ID.
 type FigureAlt struct{}
 
-func (FigureAlt) ID() string    { return "MH-13-004" }
+func (FigureAlt) ID() string    { return "UA-13-004" }
 func (FigureAlt) Title() string { return "Figure has Alt or ActualText" }
 func (FigureAlt) Description() string {
 	return "Every Figure structure element must provide an accessible text equivalent so screen readers have something to announce. PDF/UA-1 §7.3 accepts /Alt (a description of the image) or /ActualText (a textual replacement, used for decorative or rebus-style figures)."
@@ -38,7 +38,7 @@ func (c FigureAlt) Run(doc model.Document) []engine.Finding {
 	}
 	if root == nil {
 		// No structure tree means there are no Figure StructElems to
-		// inspect. MH-01-005 already flags the missing tree; declare
+		// inspect. UA-01-005 already flags the missing tree; declare
 		// ourselves not-applicable so the verdict honestly says N/A
 		// instead of a misleading PASS.
 		return []engine.Finding{{

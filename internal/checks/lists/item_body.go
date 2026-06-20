@@ -18,7 +18,7 @@ import (
 // LBody is the mandatory container.
 type ItemBody struct{}
 
-func (ItemBody) ID() string                { return "MH-16-002" }
+func (ItemBody) ID() string                { return "UA-16-002" }
 func (ItemBody) Title() string             { return "List items contain LBody" }
 func (ItemBody) Category() engine.Category { return engine.CategoryLists }
 func (ItemBody) Severity() engine.Severity { return engine.SeverityError }

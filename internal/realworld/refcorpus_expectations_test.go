@@ -13,7 +13,7 @@ package realworld_test
 //
 // Key: the path relative to the corpus root (e.g.
 // "fundamentals/2-text/G2_06-.../UA1_Tpdf-G2_06.pdf").
-// Value: MH-IDs of checks whose failure is documented as expected on
+// Value: UA-IDs of checks whose failure is documented as expected on
 // that file and therefore not counted toward the false-positive total.
 //
 // Add an entry only after manually inspecting the file and confirming
@@ -27,6 +27,6 @@ var allowedFailures = map[string][]string{
 	// PDF/UA-1 §7.1 / ISO 32000-1 §14.7.4.3 violation, but it is
 	// orthogonal to the ActualText technique this sample is showing.
 	// PAC/pdfa.org list the file as a PASS example of the technique;
-	// pdfa11y's MH-02-003 finding is correct on its own terms.
-	"fundamentals/2-text/G2_06-ActualText-provides-correct-extractable-characters-in-place-of-OCR-errors/UA1_Tpdf-G2_06.pdf": {"MH-02-003"},
+	// pdfa11y's UA-02-003 finding is correct on its own terms.
+	"fundamentals/2-text/G2_06-ActualText-provides-correct-extractable-characters-in-place-of-OCR-errors/UA1_Tpdf-G2_06.pdf": {"UA-02-003"},
 }

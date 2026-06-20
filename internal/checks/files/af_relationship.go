@@ -25,7 +25,7 @@ import (
 // finding shape.
 type AFRelationship struct{}
 
-func (AFRelationship) ID() string                { return "MH-12-001" }
+func (AFRelationship) ID() string                { return "UA-12-001" }
 func (AFRelationship) Title() string             { return "Associated Files declare /AFRelationship" }
 func (AFRelationship) Category() engine.Category { return engine.CategoryEmbeddedFiles }
 func (AFRelationship) Severity() engine.Severity { return engine.SeverityError }

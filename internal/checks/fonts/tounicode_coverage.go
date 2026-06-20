@@ -16,18 +16,18 @@ import (
 // /ToUnicode stream is not enough if it is empty or omits the
 // codes that the page actually shows.
 //
-// Complements MH-10-001:
-//   - MH-10-001 fires when /ToUnicode is missing entirely (or the
+// Complements UA-10-001:
+//   - UA-10-001 fires when /ToUnicode is missing entirely (or the
 //     font cannot rely on the predefined-encoding shortcut).
-//   - MH-10-002 (this check) fires when /ToUnicode is present but
+//   - UA-10-002 (this check) fires when /ToUnicode is present but
 //     its bfchar/bfrange tables either are empty (the F01 case) or
 //     do not cover the codes used in Tj/TJ.
 //
 // Fonts that have no /ToUnicode entry at all are intentionally
-// skipped here: that case is MH-10-001's responsibility.
+// skipped here: that case is UA-10-001's responsibility.
 type ToUnicodeCoverage struct{}
 
-func (ToUnicodeCoverage) ID() string                { return "MH-10-002" }
+func (ToUnicodeCoverage) ID() string                { return "UA-10-002" }
 func (ToUnicodeCoverage) Title() string             { return "/ToUnicode covers every used code" }
 func (ToUnicodeCoverage) Category() engine.Category { return engine.CategoryFonts }
 func (ToUnicodeCoverage) Severity() engine.Severity { return engine.SeverityError }
@@ -57,7 +57,7 @@ func (c ToUnicodeCoverage) Run(doc model.Document) []engine.Finding {
 	// Aggregate per font (keyed by Subtype + BaseFont so the same
 	// logical font referenced from multiple resource keys collapses
 	// to one report). Per font we collect: the parsed ToUnicode map
-	// (nil if the font has no /ToUnicode at all -- then MH-10-001's
+	// (nil if the font has no /ToUnicode at all -- then UA-10-001's
 	// territory) and the union of codes used across all pages.
 	type fontUsage struct {
 		font       model.Font
@@ -70,7 +70,7 @@ func (c ToUnicodeCoverage) Run(doc model.Document) []engine.Finding {
 	for _, p := range pages {
 		for key, f := range p.UsedFonts {
 			if f.ToUnicodeMappings == nil {
-				continue // MH-10-001 already covers missing /ToUnicode
+				continue // UA-10-001 already covers missing /ToUnicode
 			}
 			consideredAny = true
 			id := fontKey(f)

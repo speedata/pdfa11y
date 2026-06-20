@@ -26,7 +26,7 @@ import (
 // omits the pdfuaid:part identifier. Counting that failure in the
 // verdict would mask every per-file failing condition the corpus is
 // actually testing. We exclude it for the comparison.
-const noiseCheckID = "MH-06-003"
+const noiseCheckID = "UA-06-003"
 
 // failureFilenamePattern picks out failure-demonstration PDFs from the
 // pdfa.org naming convention: `UA1_Tpdf-<group>_F<NN>.pdf` is a
@@ -167,7 +167,7 @@ func evaluate(absPath, corpusRoot string) corpusResult {
 	return r
 }
 
-// allowedSet builds a lookup of MH-IDs whose failure is acceptable on
+// allowedSet builds a lookup of UA-IDs whose failure is acceptable on
 // the given file. Falls back to an empty set when the file is not in
 // the expectations table.
 func allowedSet(rel string) map[string]bool {

@@ -30,7 +30,7 @@ const outlineThreshold = 21
 // omission visible without blocking conformance.
 type Outlines struct{}
 
-func (Outlines) ID() string                { return "MH-27-001" }
+func (Outlines) ID() string                { return "UA-27-001" }
 func (Outlines) Title() string             { return "Multi-page documents declare /Outlines" }
 func (Outlines) Category() engine.Category { return engine.CategoryNavigation }
 func (Outlines) Severity() engine.Severity { return engine.SeverityWarning }

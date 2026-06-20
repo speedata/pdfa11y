@@ -27,7 +27,7 @@ import (
 // CID font's /FontDescriptor.
 type Embedded struct{}
 
-func (Embedded) ID() string    { return "MH-09-001" }
+func (Embedded) ID() string    { return "UA-09-001" }
 func (Embedded) Title() string { return "All fonts are embedded" }
 func (Embedded) Description() string {
 	return "PDF/UA-1 §7.21.4 requires every font used in the document to be embedded so rendering does not depend on a system font that may differ or be missing. The standard-14 PostScript fonts (Helvetica, Times, Courier, Symbol, ZapfDingbats) are reported as a warning rather than an error when not embedded -- the strict spec requires their embedding, but viewers and validators including PAC accept them as implicitly available."

@@ -9,7 +9,7 @@ import (
 	"github.com/speedata/pdfa11y/internal/model"
 )
 
-// NoteID enforces both halves of MH-19-001:
+// NoteID enforces both halves of UA-19-001:
 //
 //   - Every Note structure element must carry an /ID so a reference
 //     elsewhere in the document can target it. Without /ID assistive
@@ -26,7 +26,7 @@ import (
 // /Ref-target has an /ID present in that set.
 type NoteID struct{}
 
-func (NoteID) ID() string                { return "MH-19-001" }
+func (NoteID) ID() string                { return "UA-19-001" }
 func (NoteID) Title() string             { return "Notes carry /ID and references resolve" }
 func (NoteID) Category() engine.Category { return engine.CategoryNotes }
 func (NoteID) Severity() engine.Severity { return engine.SeverityError }

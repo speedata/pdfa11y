@@ -11,7 +11,7 @@ import (
 // TitleAgreement fails when the document title in DocumentInfo
 // /Title and in the XMP dc:title element disagree. PDF/UA-1 §7.1
 // makes XMP dc:title the normative title source (covered by
-// MH-06-004); PDF 2.0 / PDF/UA-2 additionally deprecate the
+// UA-06-004); PDF 2.0 / PDF/UA-2 additionally deprecate the
 // DocumentInfo dictionary so we no longer require /Title to be
 // present there. When it IS present, however, AT, viewers and
 // indexers can still consult DocumentInfo, and a mismatch would
@@ -19,26 +19,26 @@ import (
 // looks at -- this check catches that.
 //
 // Limitation: the XMP side is parsed with a small regex over the raw
-// stream, same approach as MH-06-004. Namespace prefixes other than
+// stream, same approach as UA-06-004. Namespace prefixes other than
 // "dc" or unusual structural variants will produce false negatives.
 // A proper XML-aware parser is a planned cleanup across all three
 // metadata checks.
 type TitleAgreement struct{}
 
-func (TitleAgreement) ID() string                { return "MH-06-005" }
+func (TitleAgreement) ID() string                { return "UA-06-005" }
 func (TitleAgreement) Title() string             { return "DocumentInfo /Title and XMP dc:title agree" }
 func (TitleAgreement) Category() engine.Category { return engine.CategoryMetadata }
 func (TitleAgreement) Severity() engine.Severity { return engine.SeverityError }
 func (TitleAgreement) Spec() engine.Spec         { return engine.SpecBoth }
 func (TitleAgreement) WCAG() []string            { return []string{"2.4.2"} }
 func (TitleAgreement) Description() string {
-	return "When a document declares both DocumentInfo /Title and XMP dc:title they must express the same title. PDF/UA-1 §7.1 makes XMP dc:title the normative source (MH-06-004), and PDF 2.0 / PDF/UA-2 deprecate the DocumentInfo dictionary -- but legacy consumers still read DocumentInfo, so a mismatch leaves them announcing a different title than AT does. When only one of the two is present the check declines (N/A)."
+	return "When a document declares both DocumentInfo /Title and XMP dc:title they must express the same title. PDF/UA-1 §7.1 makes XMP dc:title the normative source (UA-06-004), and PDF 2.0 / PDF/UA-2 deprecate the DocumentInfo dictionary -- but legacy consumers still read DocumentInfo, so a mismatch leaves them announcing a different title than AT does. When only one of the two is present the check declines (N/A)."
 }
 
 // dc:title may be a bare element or wrap an rdf:Alt with rdf:li per
 // language. We extract the inner text of the first rdf:li, falling
 // back to the dc:title body when there is no rdf:Alt wrapper. Same
-// heuristic as MH-06-004's presence regex, extended to capture.
+// heuristic as UA-06-004's presence regex, extended to capture.
 var (
 	dcTitleBody  = regexp.MustCompile(`(?s)<dc:title[^>]*>(.*?)</dc:title>`)
 	rdfLiBody    = regexp.MustCompile(`(?s)<rdf:li[^>]*>(.*?)</rdf:li>`)
@@ -57,7 +57,7 @@ func (c TitleAgreement) Run(doc model.Document) []engine.Finding {
 		}}
 	}
 	if !found {
-		// MH-06-004 already flags the missing XMP title. Decline.
+		// UA-06-004 already flags the missing XMP title. Decline.
 		return []engine.Finding{{
 			CheckID:  c.ID(),
 			Severity: engine.SeverityNotApplicable,

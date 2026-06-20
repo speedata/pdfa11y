@@ -29,7 +29,7 @@ import (
 // PDF/UA-2 only, gated via pdfua.DetectPart.
 type DeprecatedAnnotTypes struct{}
 
-func (DeprecatedAnnotTypes) ID() string                { return "MH-28-009" }
+func (DeprecatedAnnotTypes) ID() string                { return "UA-28-009" }
 func (DeprecatedAnnotTypes) Title() string             { return "PDF/UA-2 documents do not contain deprecated annotation types" }
 func (DeprecatedAnnotTypes) Category() engine.Category { return engine.CategoryInteractive }
 func (DeprecatedAnnotTypes) Severity() engine.Severity { return engine.SeverityError }

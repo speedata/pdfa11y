@@ -19,7 +19,7 @@ import (
 // user-visible and do not participate in AT surfaces.
 type StructLinked struct{}
 
-func (StructLinked) ID() string                { return "MH-28-004" }
+func (StructLinked) ID() string                { return "UA-28-004" }
 func (StructLinked) Title() string             { return "Annotations are linked from the structure tree" }
 func (StructLinked) Category() engine.Category { return engine.CategoryInteractive }
 func (StructLinked) Severity() engine.Severity { return engine.SeverityError }

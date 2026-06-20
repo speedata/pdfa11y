@@ -25,7 +25,7 @@ import (
 // a different check that is not yet implemented.
 type Hierarchy struct{}
 
-func (Hierarchy) ID() string    { return "MH-14-003" }
+func (Hierarchy) ID() string    { return "UA-14-003" }
 func (Hierarchy) Title() string { return "Headings start at H1 and are properly nested" }
 func (Hierarchy) Description() string {
 	return "PDF/UA-1 §7.4.2 requires the first heading to be H1 and subsequent levels to descend by at most one. Starting with H3, or jumping H1 -> H3, leaves the document outline broken in ways assistive technology cannot reconstruct."

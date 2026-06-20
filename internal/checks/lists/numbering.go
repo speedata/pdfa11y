@@ -28,7 +28,7 @@ import (
 // per-finding severity is what reporters actually surface.
 type Numbering struct{}
 
-func (Numbering) ID() string                { return "MH-16-003" }
+func (Numbering) ID() string                { return "UA-16-003" }
 func (Numbering) Title() string             { return "Lists declare /ListNumbering" }
 func (Numbering) Category() engine.Category { return engine.CategoryLists }
 func (Numbering) Severity() engine.Severity { return engine.SeverityError }

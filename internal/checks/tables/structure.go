@@ -19,7 +19,7 @@ import (
 // rule keeps a single responsibility.
 type Structure struct{}
 
-func (Structure) ID() string    { return "MH-15-003" }
+func (Structure) ID() string    { return "UA-15-003" }
 func (Structure) Title() string { return "Table contains rows (TR)" }
 func (Structure) Description() string {
 	return "Tables must use the canonical Table -> (THead|TBody|TFoot)? -> TR -> (TH|TD) tagging pattern. This check fires when a Table structure element has no TR among its children -- usually a sign that the author tagged visual layout (paragraphs in a grid) rather than semantic table structure."

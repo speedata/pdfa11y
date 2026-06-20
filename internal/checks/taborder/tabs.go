@@ -30,7 +30,7 @@ import (
 // forget to override it.
 type PageTabs struct{}
 
-func (PageTabs) ID() string                { return "MH-08-001" }
+func (PageTabs) ID() string                { return "UA-08-001" }
 func (PageTabs) Title() string             { return "Pages declare an accessible /Tabs value" }
 func (PageTabs) Category() engine.Category { return engine.CategoryTabOrder }
 func (PageTabs) Severity() engine.Severity { return engine.SeverityError }

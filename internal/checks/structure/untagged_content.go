@@ -22,7 +22,7 @@ import (
 // listing would flood the report on broken pages.
 type UntaggedContent struct{}
 
-func (UntaggedContent) ID() string                { return "MH-14-001" }
+func (UntaggedContent) ID() string                { return "UA-14-001" }
 func (UntaggedContent) Title() string             { return "Real content is inside a marked-content sequence or Artifact" }
 func (UntaggedContent) Category() engine.Category { return engine.CategoryStructure }
 func (UntaggedContent) Severity() engine.Severity { return engine.SeverityError }

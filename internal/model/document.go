@@ -54,7 +54,7 @@ type Document interface {
 
 	// Annotations returns one Annotation per /Annots entry across
 	// every page, in page order, with the fields needed by the
-	// MH-28 family of checks already resolved (Subtype, Contents,
+	// UA-28 family of checks already resolved (Subtype, Contents,
 	// Tooltip via /Parent chain, /StructParent, /F flags). Backends
 	// without annotation support return an empty slice with no error.
 	Annotations() ([]Annotation, error)
@@ -76,11 +76,11 @@ type Document interface {
 	// AssociatedFiles enumerates filespecs reachable through /AF
 	// arrays on the catalog and on every page. Annotation- and
 	// XObject-level /AF arrays are not yet walked (planned). Used by
-	// MH-12-001 to verify every /AF entry declares /AFRelationship.
+	// UA-12-001 to verify every /AF entry declares /AFRelationship.
 	AssociatedFiles() ([]AssociatedFile, error)
 
 	// Encryption reports the document's security handler state in
-	// the subset needed by the MH-26 family of checks. For an
+	// the subset needed by the UA-26 family of checks. For an
 	// unencrypted document the zero value (Encrypted=false) is
 	// returned; AllowExtractText / AllowAccessibility are then
 	// meaningless. For an encrypted document the flags reflect the
@@ -90,8 +90,8 @@ type Document interface {
 
 // AssociatedFile is a value snapshot of one filespec entry reached
 // via an /AF array on the catalog, a page, or a structure element.
-// Used by MH-12-001 to check that each entry declares
-// /AFRelationship, and by MH-17-001 to detect MathML-as-AF on
+// Used by UA-12-001 to check that each entry declares
+// /AFRelationship, and by UA-17-001 to detect MathML-as-AF on
 // Formula structure elements.
 type AssociatedFile struct {
 	// SourcePath identifies where the /AF array sat. "Catalog" for
@@ -107,7 +107,7 @@ type AssociatedFile struct {
 
 	// Relationship is the /AFRelationship Name value (e.g. "Source",
 	// "Data", "Supplement", "Unspecified"). Empty when the entry is
-	// absent -- the MH-12-001 failure pattern.
+	// absent -- the UA-12-001 failure pattern.
 	Relationship string
 
 	// Subtype is the MIME type carried on the embedded-file stream
@@ -122,14 +122,14 @@ type AssociatedFile struct {
 	// stream or decoding failed. Eager-loaded at collect time --
 	// MathML/LaTeX AFs are small enough (<1KB typical) that the
 	// alternative of lazy access would add API friction without
-	// material savings. MH-17-004 parses these bytes as XML; other
+	// material savings. UA-17-004 parses these bytes as XML; other
 	// callers should treat them as opaque.
 	Content []byte
 }
 
 // AcroFormField is a value snapshot of one terminal Widget annotation
 // reached through a recursive walk of /AcroForm/Fields. Used by
-// MH-28-007 to cross-check that every form field surfaced in the
+// UA-28-007 to cross-check that every form field surfaced in the
 // interactive layer is also referenced from the structure tree.
 type AcroFormField struct {
 	// FullName is the field's fully-qualified name: the local /T of
@@ -138,14 +138,14 @@ type AcroFormField struct {
 	FullName string
 
 	// StructParent is the value of /StructParent on the widget. -1
-	// when the widget has no /StructParent at all -- the MH-28-007
+	// when the widget has no /StructParent at all -- the UA-28-007
 	// failure pattern.
 	StructParent int
 }
 
 // OptionalContentGroup is a value snapshot of one OCG (PDF layer)
 // dictionary. Currently only /Name is surfaced because that is what
-// MH-20-001 needs; other entries (/Intent, /Usage) can be added when
+// UA-20-001 needs; other entries (/Intent, /Usage) can be added when
 // further OCG checks land.
 type OptionalContentGroup struct {
 	// Name is the value of /Name on the OCG dictionary. Empty when
@@ -429,7 +429,7 @@ type Font struct {
 	//     for which ISO 32000-1 §9.7.4.2 defines Identity as the
 	//     default)
 	//   - "Stream"   — a stream is present, mapping CIDs to GIDs
-	//   - other      — a non-Identity Name was set (the MH-31-001
+	//   - other      — a non-Identity Name was set (the UA-31-001
 	//     failure pattern)
 	// Empty when the font is not a CIDFontType2 descendant.
 	CIDToGIDMap string
@@ -491,7 +491,7 @@ type StructElement interface {
 	// Refs returns the StructElements referenced by /Ref (an array
 	// of indirect references on the element dict). Entries that do
 	// not resolve to a structure element are dropped: this signature
-	// cannot distinguish "no /Ref" from "broken /Ref". MH-19-001 uses
+	// cannot distinguish "no /Ref" from "broken /Ref". UA-19-001 uses
 	// it to follow Note/Reference cross-links.
 	Refs() []StructElement
 
@@ -506,7 +506,7 @@ type StructElement interface {
 	// belongs to, as declared by its /NS entry (or inherited through
 	// the /P chain). Returns "" when no /NS attribute can be resolved
 	// on the element or any ancestor -- in tagged PDF this means the
-	// element falls into the default/PDF namespace. MH-17-005 uses
+	// element falls into the default/PDF namespace. UA-17-005 uses
 	// this to verify that a 'math' struct child of Formula is
 	// actually declared in the W3C MathML namespace, not just named
 	// "math" by coincidence (the ISO 32000-2 §14.8.6.3 contract).

@@ -31,7 +31,7 @@ func TestMTextChildren(t *testing.T) {
 		{
 			"unknown tag (presumed MathML) is silently accepted",
 			// 'mi' is a MathML element name; without /NS-map awareness
-			// MH-17-006 treats it as "not a known PDF tag" and passes.
+			// UA-17-006 treats it as "not a known PDF tag" and passes.
 			"testdata/mtext-children-mathml-tag.pdf",
 			engine.VerdictPass,
 			"",

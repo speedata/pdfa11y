@@ -19,7 +19,7 @@ import (
 // planned refinement.
 type ToUnicode struct{}
 
-func (ToUnicode) ID() string    { return "MH-10-001" }
+func (ToUnicode) ID() string    { return "UA-10-001" }
 func (ToUnicode) Title() string { return "All fonts have a /ToUnicode map" }
 func (ToUnicode) Description() string {
 	return "PDF/UA-1 §7.21.3 requires every font to expose a Unicode mapping so text extraction, copy-paste and screen-reader output can reconstruct the actual characters. A /ToUnicode CMap is the most general solution; simple fonts using the predefined WinAnsiEncoding / MacRomanEncoding / MacExpertEncoding without a /Differences override also qualify, because the encoding table implies the mapping."

@@ -11,7 +11,7 @@ import (
 // document that ships a structure tree is not technically "tagged".
 type MarkInfo struct{}
 
-func (MarkInfo) ID() string    { return "MH-01-002" }
+func (MarkInfo) ID() string    { return "UA-01-002" }
 func (MarkInfo) Title() string { return "MarkInfo declares the document as marked" }
 func (MarkInfo) Description() string {
 	return "PDF/UA-1 §6 requires the catalog to declare the document as tagged via /MarkInfo<</Marked true>>. A structure tree alone is not sufficient -- consumers use MarkInfo to recognise tagged content."

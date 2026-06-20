@@ -17,8 +17,8 @@ import (
 // which adds an unnecessary burden on processors and can cause
 // ambiguity."
 //
-// Companion to MH-14-006, which catches the *mixing* of H and Hn
-// in the same document (a PDF/UA-1 concern). MH-14-007 enforces
+// Companion to UA-14-006, which catches the *mixing* of H and Hn
+// in the same document (a PDF/UA-1 concern). UA-14-007 enforces
 // the hard ban on H under UA-2 regardless of whether the document
 // also uses Hn elements.
 //
@@ -28,7 +28,7 @@ import (
 // checks use).
 type NoUntypedH struct{}
 
-func (NoUntypedH) ID() string                { return "MH-14-007" }
+func (NoUntypedH) ID() string                { return "UA-14-007" }
 func (NoUntypedH) Title() string             { return "PDF/UA-2 documents use explicit H1-Hn, not the untyped H" }
 func (NoUntypedH) Category() engine.Category { return engine.CategoryHeadings }
 func (NoUntypedH) Severity() engine.Severity { return engine.SeverityError }
@@ -125,7 +125,7 @@ func walkH(elem model.StructElement, path string, hits *[]hOccurrence) {
 }
 
 // inStandardPDFNamespace is the same namespace predicate used by
-// MH-14-009 and MH-31-008: the element lives in the default PDF
+// UA-14-009 and UA-31-008: the element lives in the default PDF
 // type system (no namespace, or one of the two ISO 32000-2
 // registered standard structure namespace URIs).
 func inStandardPDFNamespace(elem model.StructElement) bool {

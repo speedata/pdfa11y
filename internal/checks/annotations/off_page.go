@@ -22,7 +22,7 @@ import (
 // false positives on documents we cannot measure).
 type OffPage struct{}
 
-func (OffPage) ID() string                { return "MH-28-008" }
+func (OffPage) ID() string                { return "UA-28-008" }
 func (OffPage) Title() string             { return "Off-page annotations are hidden from AT" }
 func (OffPage) Category() engine.Category { return engine.CategoryInteractive }
 func (OffPage) Severity() engine.Severity { return engine.SeverityError }

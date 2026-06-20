@@ -53,7 +53,7 @@ func TestFigureAlt(t *testing.T) {
 }
 
 // TestFigureAlt_NoStructTree confirms the check declares itself N/A
-// on an untagged document instead of vacuously passing. MH-01-005 is
+// on an untagged document instead of vacuously passing. UA-01-005 is
 // the one reporting the missing structure tree as an error.
 func TestFigureAlt_NoStructTree(t *testing.T) {
 	doc, err := pdf.LoadFile("../structure/testdata/untagged.pdf")

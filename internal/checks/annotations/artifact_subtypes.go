@@ -20,11 +20,11 @@ import (
 // omitted from this check: producers regularly chain Popup back to
 // the structure tree via the same /StructParent as the parent text
 // annotation, and flagging that as a violation would create false
-// positives. The MH-28-004 check already exempts Popup from the
+// positives. The UA-28-004 check already exempts Popup from the
 // "must be linked" rule.
 type ArtifactSubtypes struct{}
 
-func (ArtifactSubtypes) ID() string                { return "MH-28-006" }
+func (ArtifactSubtypes) ID() string                { return "UA-28-006" }
 func (ArtifactSubtypes) Title() string             { return "Artifact-only annotation subtypes are not in the structure tree" }
 func (ArtifactSubtypes) Category() engine.Category { return engine.CategoryInteractive }
 func (ArtifactSubtypes) Severity() engine.Severity { return engine.SeverityError }

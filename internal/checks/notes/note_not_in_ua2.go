@@ -24,7 +24,7 @@ import (
 // PDF/UA-2 only: gated via pdfua.DetectPart.
 type NoteNotInUA2 struct{}
 
-func (NoteNotInUA2) ID() string                { return "MH-14-009" }
+func (NoteNotInUA2) ID() string                { return "UA-14-009" }
 func (NoteNotInUA2) Title() string             { return "PDF/UA-2 documents do not use the Note structure type" }
 func (NoteNotInUA2) Category() engine.Category { return engine.CategoryNotes }
 func (NoteNotInUA2) Severity() engine.Severity { return engine.SeverityError }
@@ -86,7 +86,7 @@ func (c NoteNotInUA2) walk(elem model.StructElement, path string, out *[]engine.
 	}
 }
 
-// inStandardPDFNamespace mirrors the predicate used by MH-31-008:
+// inStandardPDFNamespace mirrors the predicate used by UA-31-008:
 // elements with no namespace or with one of the registered PDF
 // standard structure namespace URIs (ISO 32000-2 §14.8.6.3 /
 // ISO/TS 32005) live in the default PDF type system.

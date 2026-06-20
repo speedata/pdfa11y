@@ -27,8 +27,8 @@ func Write(w io.Writer, path string, results []engine.Result, opts Options) {
 	if sum.NotApplicable > 0 {
 		naPart = fmt.Sprintf(" · %d n/a", sum.NotApplicable)
 	}
-	fmt.Fprintf(w, "Verdict: %s   %d checks: %d pass%s · %d fail   errors: %d · warnings: %d\n\n",
-		sum.Verdict(), sum.Total, sum.Passed, naPart, sum.Failed, sum.Errors, sum.Warnings)
+	fmt.Fprintf(w, "Verdict: %s   %d checks: %d pass%s · %d fail   errors: %d · warnings: %d · suggestions: %d\n\n",
+		sum.Verdict(), sum.Total, sum.Passed, naPart, sum.Failed, sum.Errors, sum.Warnings, sum.Infos)
 
 	for _, r := range groupByCategory(results) {
 		fmt.Fprintf(w, "[%s]\n", r.category)

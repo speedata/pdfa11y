@@ -22,12 +22,12 @@ import (
 //
 // The check declines (N/A) when the document has no structure tree
 // or no Formula elements at all. Spec selection follows the same
-// pattern as MH-09-003: read pdfuaid:part from XMP so engine.All()
+// pattern as UA-09-003: read pdfuaid:part from XMP so engine.All()
 // callers (tests, the realworld driver) see UA-2 behaviour on
 // PDF/UA-2 documents without the CLI having to filter.
 type FormulaAlt struct{}
 
-func (FormulaAlt) ID() string    { return "MH-17-001" }
+func (FormulaAlt) ID() string    { return "UA-17-001" }
 func (FormulaAlt) Title() string { return "Formula has accessible math representation" }
 func (FormulaAlt) Description() string {
 	return "Every Formula structure element must provide an accessible math representation. PDF/UA-1 §7.5 requires /Alt or /ActualText. PDF/UA-2 §8.2.5.29.1 additionally accepts MathML -- either as a direct 'math' child of Formula or as an Associated File with AFRelationship /Supplement and Subtype application/mathml+xml (PDF Association BPG \"Math in PDF\"). Without one of these, assistive technology has no usable representation; the rendered glyphs rely on specialised math fonts whose Unicode mapping is unreliable."
@@ -41,7 +41,7 @@ func (FormulaAlt) WCAG() []string            { return []string{"1.1.1"} }
 // declare per BPG §"Use of Associated files" / ISO 14289-2
 // §8.2.5.29.1. PDF/UA-2 §14.8.6.3 also registers
 // http://www.w3.org/1998/Math/MathML as the namespace for inline
-// 'math' struct-element children; a future MH-17-005 will validate
+// 'math' struct-element children; a future UA-17-005 will validate
 // that namespace declaration explicitly.
 const mathMLSubtype = "application/mathml+xml"
 
@@ -117,7 +117,7 @@ func (c FormulaAlt) walk(elem model.StructElement, path string, ua2 bool, out *[
 // For the math-child path we require the child to live in the W3C
 // MathML namespace, not merely be named "math" (an /NS-less or
 // wrong-namespace 'math' is treated by AT as an unmapped custom
-// type and conveys no math semantics). MH-17-005 reports the
+// type and conveys no math semantics). UA-17-005 reports the
 // namespace problem in its own finding when present.
 func hasAccessibleMath(elem model.StructElement, ua2 bool) bool {
 	if elem.Attr("Alt") != "" || elem.AttrPresent("ActualText") {

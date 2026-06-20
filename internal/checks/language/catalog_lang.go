@@ -16,7 +16,7 @@ import (
 // rather than a hard error.
 type CatalogLang struct{}
 
-func (CatalogLang) ID() string    { return "MH-11-001" }
+func (CatalogLang) ID() string    { return "UA-11-001" }
 func (CatalogLang) Title() string { return "Document declares a primary language" }
 func (CatalogLang) Description() string {
 	return "PDF/UA-1 §7.2 requires the document's natural language to be declared either as /Lang on the catalog or per structure element. Severity is Warning because per-element declarations may compensate; structure-element coverage is not yet verified by this tool."

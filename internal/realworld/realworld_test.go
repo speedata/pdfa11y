@@ -28,13 +28,13 @@ import (
 //
 // Vacuous passes (document does not exercise the check, so it
 // passes by absence of a violation):
-//   - MH-15-003: no Table element present.
+//   - UA-15-003: no Table element present.
 func TestGluPDFUADemo(t *testing.T) {
 	knownLimitations := map[string]string{
 		// The glu demo predates ISO 14289-2 §5's pdfuaid:rev
 		// requirement: the file declares pdfuaid:part but not
 		// pdfuaid:rev. Tolerated until the demo regenerates.
-		"MH-06-006": "fixture predates the ISO 14289-2 §5 pdfuaid:rev requirement",
+		"UA-06-006": "fixture predates the ISO 14289-2 §5 pdfuaid:rev requirement",
 	}
 	doc, err := pdf.LoadFile("testdata/glu-pdfua-demo.pdf")
 	if err != nil {

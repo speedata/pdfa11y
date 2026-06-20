@@ -45,7 +45,7 @@ func TestBuildAndWrite(t *testing.T) {
 		`class="summary-verdict verdict-fail"`,
 		`class="state-grid state-fail"`,
 		`<details class="check check-fail" open>`,
-		"MH-01-005",
+		"UA-01-005",
 		"Document has a structure tree",
 		"A PDF/UA-conforming document", // beginning of Description()
 		"no structure tree",

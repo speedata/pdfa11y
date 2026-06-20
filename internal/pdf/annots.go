@@ -41,7 +41,7 @@ func (d *document) Annotations() ([]model.Annotation, error) {
 	return d.annotations, nil
 }
 
-// annotationFromDict snapshots the fields the MH-28 checks need.
+// annotationFromDict snapshots the fields the UA-28 checks need.
 func (d *document) annotationFromDict(ad *pdd.Dict, page int, pageBox [4]float64) model.Annotation {
 	subtypeName, _ := ad.Name("Subtype")
 	contents, _ := ad.String("Contents")
@@ -129,7 +129,7 @@ func numberOf(o pdd.Object) (float64, bool) {
 // rectIsOffPage reports whether annot's rectangle lies entirely
 // outside pageBox. When either box is zero (failed to read), the
 // function returns false -- "we don't know" is reported as "on page"
-// so MH-28-008 does not produce false positives on documents we
+// so UA-28-008 does not produce false positives on documents we
 // cannot measure.
 func rectIsOffPage(annot, page [4]float64) bool {
 	zero := [4]float64{}
