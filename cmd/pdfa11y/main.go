@@ -34,6 +34,7 @@ func run() int {
 		format      = "terminal"
 		specFlag    = "auto"
 		showWCAG    bool
+		showNA      bool
 		listOnly    bool
 		strict      bool
 		showVersion bool
@@ -44,6 +45,7 @@ func run() int {
 	op.On("--format FORMAT", "output format: terminal (default), json, jsonl, html, pdf", &format)
 	op.On("--spec SPEC", "PDF/UA spec: pdfua1, pdfua2, auto (default)", &specFlag)
 	op.On("--wcag", "show WCAG mapping in the report", &showWCAG)
+	op.On("--show-na", "show not-applicable checks in the terminal report (hidden by default)", &showNA)
 	op.On("--strict", "treat warnings as errors (affects verdict and exit code)", &strict)
 	op.On("--list-rules", "list registered checks and exit", &listOnly)
 	op.On("--version", "print version and exit", &showVersion)
@@ -86,9 +88,9 @@ func run() int {
 
 	anyFail := false
 	anyError := false
-	var jsonDocs []jsonrep.Document  // accumulated only for --format json
-	var htmlDocs []html.Document     // accumulated only for --format html
-	var pdfDocs []pdfrep.Document    // accumulated only for --format pdf
+	var jsonDocs []jsonrep.Document // accumulated only for --format json
+	var htmlDocs []html.Document    // accumulated only for --format html
+	var pdfDocs []pdfrep.Document   // accumulated only for --format pdf
 
 	for _, path := range op.Extra {
 		doc, err := pdf.LoadFile(path)
@@ -106,7 +108,7 @@ func run() int {
 
 		switch format {
 		case "terminal":
-			terminal.Write(os.Stdout, path, results, terminal.Options{ShowWCAG: showWCAG})
+			terminal.Write(os.Stdout, path, results, terminal.Options{ShowWCAG: showWCAG, ShowNA: showNA})
 		case "jsonl":
 			if err := jsonrep.WriteLine(os.Stdout, jsonrep.Build(path, results)); err != nil {
 				fmt.Fprintln(os.Stderr, "pdfa11y:", err)

@@ -21,10 +21,10 @@ import (
 // (BPG §"Precedence").
 //
 // The check declines (N/A) when the document has no structure tree
-// or no Formula elements at all. Spec selection follows the same
-// pattern as UA-09-003: read pdfuaid:part from XMP so engine.All()
-// callers (tests, the realworld driver) see UA-2 behaviour on
-// PDF/UA-2 documents without the CLI having to filter.
+// or no Formula elements at all. Spec selection follows the usual
+// UA-2 pattern: read pdfuaid:part from XMP so engine.All() callers
+// (tests, the realworld driver) see UA-2 behaviour on PDF/UA-2
+// documents without the CLI having to filter.
 type FormulaAlt struct{}
 
 func (FormulaAlt) ID() string    { return "UA-17-001" }

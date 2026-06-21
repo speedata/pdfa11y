@@ -149,6 +149,7 @@ body {
   font-size: 16pt;
   margin: 0 0 4pt 0;
   letter-spacing: -.005em;
+  -bag-bookmark: none;        /* keep the outline to sections, not "Findings" */
 }
 
 .report-page .filename-line {
@@ -159,7 +160,7 @@ body {
   word-break: break-all;
 }
 
-.category {
+.group {
   font-size: 9pt;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -169,7 +170,11 @@ body {
   padding-bottom: 2pt;
   border-bottom: 0.5pt solid #e5e5e5;
   page-break-after: avoid;
+  -bag-bookmark: 1;            /* each section is a level-1 PDF bookmark */
 }
+.group-fail { color: #dc2626; }
+.group-warn { color: #b8860b; }
+.group-suggestion { color: #1664c0; }
 
 .check {
   margin: 8pt 0 0 0;
@@ -183,20 +188,19 @@ body {
 }
 
 .state {
-  display: inline-block;
-  padding: 1pt 5pt;
-  border-radius: 2pt;
-  font-size: 8pt;
-  font-weight: 700;
-  letter-spacing: .05em;
+  font-size: 20pt;
   margin-right: 6pt;
-  color: #ffffff;
-  vertical-align: middle;
+  vertical-align: sub;
 }
-.state-pass { background-color: #16a34a; }
-.state-warn { background-color: #f5b800; color: #1f2328; }
-.state-fail { background-color: #dc2626; }
-.state-na   { background-color: #c8c8c8; color: #1f2328; }
+.state-pass       { color: #16a34a; }
+.state-suggestion { color: #1664c0; }
+.state-warn       { color: #b8860b; }
+.state-fail       { color: #dc2626; }
+.state-na         { color: #b8b8b8; }
+
+/* Summary stats link to their section; render them like plain stat text,
+   not as underlined hyperlinks. */
+.stats a { color: inherit; text-decoration: none; }
 
 .check-id {
   font-family: monospace;
@@ -211,6 +215,12 @@ body {
 }
 
 .check-na .check-title { font-weight: 400; color: #6a6a6a; font-style: italic; }
+
+.check-cat {
+  font-size: 8pt;
+  color: #6a6a6a;
+  margin-left: 4pt;
+}
 
 .description {
   font-size: 9pt;

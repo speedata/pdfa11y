@@ -10,7 +10,6 @@ import (
 	"html/template"
 	"io"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -72,7 +71,7 @@ func Build(path string, results []engine.Result) Document {
 			Suggestions:   sum.Infos,
 		},
 	}
-	doc.Categories = groupByCategory(results)
+	doc.Groups = groupByVerdict(results)
 	return doc
 }
 
@@ -90,23 +89,38 @@ type pageData struct {
 // rendered; the originating Path is intentionally not surfaced so
 // shared reports do not leak directory structure.
 type Document struct {
-	Filename   string
-	Verdict    string // "PASS" / "WARN" / "FAIL"
-	Summary    Summary
-	Categories []Category
+	Filename string
+	Verdict  string // "PASS" / "WARN" / "FAIL"
+	Summary  Summary
+	Groups   []Group
 }
 
 // VerdictClass returns the lowercase verdict for CSS class composition.
 func (d Document) VerdictClass() string { return strings.ToLower(d.Verdict) }
+
+// HasGroup reports whether a verdict group with the given slug is
+// present (non-empty), so a summary stat links to its section only when
+// that section actually exists.
+func (d Document) HasGroup(slug string) bool {
+	for _, g := range d.Groups {
+		if g.Slug == slug {
+			return true
+		}
+	}
+	return false
+}
 
 // Summary mirrors engine.Summary with template-friendly field types.
 type Summary struct {
 	Passed, NotApplicable, Failed, Total, Errors, Warnings, Suggestions int
 }
 
-// Category groups Result views under one category heading.
-type Category struct {
-	Name    string
+// Group bundles the checks that share a verdict bucket (Failed,
+// Warnings, Passed, Suggestions, Not applicable), in display order.
+type Group struct {
+	Label   string // "Failed", "Warnings", ...
+	Slug    string // lowercase class hook: fail / warn / pass / suggestion / na
+	Count   int
 	Results []Result
 }
 
@@ -114,6 +128,7 @@ type Category struct {
 type Result struct {
 	ID          string
 	Title       string
+	Category    string // subject-area label, shown per row (grouping is by verdict)
 	Description string
 	State       string // "PASS" / "WARN" / "FAIL"
 	WCAG        string // comma-joined; empty when no WCAG mapping
@@ -147,26 +162,71 @@ type Finding struct {
 	Location string
 }
 
-func groupByCategory(results []engine.Result) []Category {
-	bucket := map[engine.Category][]engine.Result{}
-	for _, r := range results {
-		bucket[r.Check.Category()] = append(bucket[r.Check.Category()], r)
-	}
-	cats := make([]engine.Category, 0, len(bucket))
-	for c := range bucket {
-		cats = append(cats, c)
-	}
-	slices.Sort(cats)
+// verdictBuckets lists the verdict groups in display order. The index
+// is the bucket number returned by bucketIndex.
+var verdictBuckets = []struct{ label, slug string }{
+	{"Failed", "fail"},
+	{"Warnings", "warn"},
+	{"Passed", "pass"},
+	{"Suggestions", "suggestion"},
+	{"Not applicable", "na"},
+}
 
-	out := make([]Category, 0, len(cats))
-	for _, c := range cats {
-		rs := bucket[c]
-		sort.Slice(rs, func(i, j int) bool { return rs[i].Check.ID() < rs[j].Check.ID() })
-		view := Category{Name: string(c), Results: make([]Result, 0, len(rs))}
-		for _, r := range rs {
-			view.Results = append(view.Results, buildResult(r))
+// bucketIndex maps a result to its verdict bucket. A passing check that
+// carries advisory (Info) findings lands in "Suggestions" rather than
+// "Passed", even though its badge stays green PASS.
+func bucketIndex(r engine.Result) int {
+	switch r.State() {
+	case engine.VerdictFail:
+		return 0
+	case engine.VerdictWarn:
+		return 1
+	case engine.VerdictNA:
+		return 4
+	default: // VerdictPass
+		if hasInfoFinding(r) {
+			return 3
 		}
-		out = append(out, view)
+		return 2
+	}
+}
+
+func hasInfoFinding(r engine.Result) bool {
+	for _, f := range r.Findings {
+		if f.Severity == engine.SeverityInfo {
+			return true
+		}
+	}
+	return false
+}
+
+// groupByVerdict buckets results by verdict (Failed, Warnings, Passed,
+// Suggestions, Not applicable) in that order, omitting empty buckets.
+// Within a bucket, checks are ordered by category then ID so same-area
+// checks sit together under their per-row category label.
+func groupByVerdict(results []engine.Result) []Group {
+	buckets := make([][]engine.Result, len(verdictBuckets))
+	for _, r := range results {
+		i := bucketIndex(r)
+		buckets[i] = append(buckets[i], r)
+	}
+	out := make([]Group, 0, len(verdictBuckets))
+	for i, b := range verdictBuckets {
+		rs := buckets[i]
+		if len(rs) == 0 {
+			continue
+		}
+		sort.Slice(rs, func(a, c int) bool {
+			if rs[a].Check.Category() != rs[c].Check.Category() {
+				return rs[a].Check.Category() < rs[c].Check.Category()
+			}
+			return rs[a].Check.ID() < rs[c].Check.ID()
+		})
+		g := Group{Label: b.label, Slug: b.slug, Count: len(rs), Results: make([]Result, 0, len(rs))}
+		for _, r := range rs {
+			g.Results = append(g.Results, buildResult(r))
+		}
+		out = append(out, g)
 	}
 	return out
 }
@@ -175,6 +235,7 @@ func buildResult(r engine.Result) Result {
 	rv := Result{
 		ID:          r.Check.ID(),
 		Title:       r.Check.Title(),
+		Category:    string(r.Check.Category()),
 		Description: r.Check.Description(),
 		State:       r.State().String(),
 		WCAG:        strings.Join(r.Check.WCAG(), ", "),
@@ -261,6 +322,11 @@ const reportTemplate = `<!DOCTYPE html>
   .summary-stats .stat { display: flex; flex-direction: column; padding: .2rem 0; }
   .summary-stats .stat-value { font-size: 1.05rem; font-weight: 600; color: var(--text); line-height: 1.2; }
   .summary-stats .stat-label { font-size: .75rem; color: var(--muted); letter-spacing: .02em; }
+  /* Stat links jump to their section; render like the plain stat, not a
+     blue underlined hyperlink, with a subtle hover affordance. */
+  a.stat { text-decoration: none; color: inherit; border-radius: 4px; }
+  a.stat:hover { background: rgba(0,0,0,.04); }
+  a.stat:hover .stat-value { text-decoration: underline; }
 
   details.check {
     margin: .15rem 0;
@@ -300,7 +366,15 @@ const reportTemplate = `<!DOCTYPE html>
   .check-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-size: .8rem; flex: 0 0 auto; }
   .check-title { font-weight: 500; flex: 1 1 auto; color: var(--text); }
   details.check.check-pass .check-title { color: #444; font-weight: 400; }
+  .check-cat { color: var(--muted); font-size: .72rem; flex: 0 0 auto; border: 1px solid var(--rule); border-radius: 999px; padding: .05rem .5rem; }
   .wcag { color: var(--muted); font-size: .75rem; flex: 0 0 auto; }
+
+  /* Verdict group headings. The little count chip echoes the summary. */
+  h3.group { display: flex; align-items: center; gap: .5rem; }
+  h3.group .group-count { font-size: .7rem; color: var(--muted); border: 1px solid var(--rule); border-radius: 999px; padding: 0 .45rem; -webkit-text-fill-color: initial; }
+  h3.group-fail { color: var(--fail); }
+  h3.group-warn { color: var(--warn); }
+  h3.group-suggestion { color: var(--info); }
 
   .check-body {
     padding: .35rem 0 .75rem 4.7rem;
@@ -334,15 +408,15 @@ const reportTemplate = `<!DOCTYPE html>
   <div class="summary-card">
     <div class="summary-verdict verdict-{{.VerdictClass}}">{{.Verdict}}</div>
     <div class="summary-stats">
-      <div class="stat"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></div>
-      {{if .Summary.NotApplicable}}<div class="stat"><span class="stat-value">{{.Summary.NotApplicable}}</span><span class="stat-label">not applicable</span></div>{{end}}
-      <div class="stat"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></div>
-      <div class="stat"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></div>
-      {{if .Summary.Suggestions}}<div class="stat"><span class="stat-value">{{.Summary.Suggestions}}</span><span class="stat-label">suggestion{{if ne .Summary.Suggestions 1}}s{{end}}</span></div>{{end}}
+      {{if .HasGroup "pass"}}<a class="stat" href="#g-pass"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></div>{{end}}
+      {{if .HasGroup "fail"}}<a class="stat" href="#g-fail"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></div>{{end}}
+      {{if .HasGroup "warn"}}<a class="stat" href="#g-warn"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></div>{{end}}
+      {{if .Summary.Suggestions}}<a class="stat" href="#g-suggestion"><span class="stat-value">{{.Summary.Suggestions}}</span><span class="stat-label">suggestion{{if ne .Summary.Suggestions 1}}s{{end}}</span></a>{{end}}
+      {{if .Summary.NotApplicable}}<a class="stat" href="#g-na"><span class="stat-value">{{.Summary.NotApplicable}}</span><span class="stat-label">not applicable</span></a>{{end}}
     </div>
   </div>
-  {{range .Categories}}
-    <h3>{{.Name}}</h3>
+  {{range .Groups}}
+    <h3 class="group group-{{.Slug}}" id="g-{{.Slug}}">{{.Label}} <span class="group-count">{{.Count}}</span></h3>
     {{range .Results}}
       <details class="check check-{{.StateClass}}"{{if .OpenByDefault}} open{{end}}>
         <summary>
@@ -353,6 +427,7 @@ const reportTemplate = `<!DOCTYPE html>
           </span>
           <span class="check-id">{{.ID}}</span>
           <span class="check-title">{{.Title}}</span>
+          <span class="check-cat">{{.Category}}</span>
           {{if .WCAG}}<span class="wcag">WCAG {{.WCAG}}</span>{{end}}
         </summary>
         <div class="check-body">

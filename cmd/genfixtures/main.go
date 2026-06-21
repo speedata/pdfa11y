@@ -572,16 +572,6 @@ func run() error {
 		return err
 	}
 
-	// UA-09-003: Type 1 fonts removed by PDF 2.0 / PDF/UA-2.
-	if err := withFontAndUA2("internal/checks/fonts/testdata/truetype-in-ua2.pdf",
-		"TrueType", "PDFA11YTestTT"); err != nil {
-		return err
-	}
-	if err := withFontAndUA2("internal/checks/fonts/testdata/type1-in-ua2.pdf",
-		"Type1", "PDFA11YTestT1"); err != nil {
-		return err
-	}
-
 	// UA-31-001: CIDFontType2 declares /CIDToGIDMap = Identity or stream.
 	if err := withCIDFontType2("internal/checks/fonts/testdata/cid-identity.pdf",
 		"Identity"); err != nil {
@@ -1820,124 +1810,6 @@ func withCIDFontType2(dst, cidToGIDMap string) error {
 	pageDict["Resources"] = types.Dict{
 		"Font": types.Dict{"FProbe": *fontRef},
 	}
-	return writeAndLog(ctx, dst)
-}
-
-// xmpUA2 declares pdfuaid:part = 2, the PDF/UA-2 conformance marker.
-// Used by the UA-09-003 fixtures, which must satisfy the check's
-// in-body gate (pdfua.DetectPart == 2) to exercise the Type-1
-// failure path at all.
-const xmpUA2 = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about=""
-        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
-      <pdfuaid:part>2</pdfuaid:part>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`
-
-// withFontAndUA2 attaches a single synthetic font of the requested
-// /Subtype (e.g. "Type1", "TrueType") to the first page and declares
-// pdfuaid:part = 2 in the XMP metadata stream. UA-09-003 fires on
-// "Type1" / "MMType1" subtypes when the document declares UA-2.
-//
-// The font is embedded (FontFile / FontFile2 / FontFile3 depending
-// on subtype) so the fixture does not also trip UA-09-001.
-func withFontAndUA2(dst, subtype, baseFont string) error {
-	ctx, err := api.ReadContextFile(basePath)
-	if err != nil {
-		return err
-	}
-	xrt := ctx.XRefTable
-
-	// Embedded font program. Type1 wants FontFile, TrueType wants
-	// FontFile2; we pick by subtype.
-	ff := types.StreamDict{
-		Dict:    types.Dict{"Length1": types.Integer(4)},
-		Content: []byte("STUB"),
-	}
-	if err := ff.Encode(); err != nil {
-		return err
-	}
-	ffRef, err := xrt.IndRefForNewObject(ff)
-	if err != nil {
-		return err
-	}
-	fd := types.Dict{
-		"Type":        types.Name("FontDescriptor"),
-		"FontName":    types.Name(baseFont),
-		"Flags":       types.Integer(32),
-		"FontBBox":    types.Array{types.Integer(0), types.Integer(0), types.Integer(1000), types.Integer(1000)},
-		"ItalicAngle": types.Integer(0),
-		"Ascent":      types.Integer(800),
-		"Descent":     types.Integer(-200),
-		"CapHeight":   types.Integer(700),
-		"StemV":       types.Integer(80),
-	}
-	switch subtype {
-	case "TrueType":
-		fd["FontFile2"] = *ffRef
-	default: // Type1, MMType1
-		fd["FontFile"] = *ffRef
-	}
-	fdRef, err := xrt.IndRefForNewObject(fd)
-	if err != nil {
-		return err
-	}
-
-	font := types.Dict{
-		"Type":           types.Name("Font"),
-		"Subtype":        types.Name(subtype),
-		"BaseFont":       types.Name(baseFont),
-		"FirstChar":      types.Integer(32),
-		"LastChar":       types.Integer(32),
-		"Widths":         types.Array{types.Integer(500)},
-		"FontDescriptor": *fdRef,
-	}
-	fontRef, err := xrt.IndRefForNewObject(font)
-	if err != nil {
-		return err
-	}
-
-	pagesRef, err := xrt.Pages()
-	if err != nil {
-		return err
-	}
-	pagesDict, err := xrt.DereferenceDict(*pagesRef)
-	if err != nil {
-		return err
-	}
-	kids, _ := pagesDict["Kids"].(types.Array)
-	pageDict, err := xrt.DereferenceDict(kids[0])
-	if err != nil {
-		return err
-	}
-	pageDict["Resources"] = types.Dict{
-		"Font": types.Dict{"FProbe": *fontRef},
-	}
-
-	// XMP /Metadata with pdfuaid:part = 2.
-	sd := types.StreamDict{
-		Dict: types.Dict{
-			"Type":    types.Name("Metadata"),
-			"Subtype": types.Name("XML"),
-		},
-		Content: []byte(xmpUA2),
-	}
-	if err := sd.Encode(); err != nil {
-		return err
-	}
-	mdRef, err := xrt.IndRefForNewObject(sd)
-	if err != nil {
-		return err
-	}
-	cat, err := xrt.Catalog()
-	if err != nil {
-		return err
-	}
-	cat["Metadata"] = *mdRef
 	return writeAndLog(ctx, dst)
 }
 
@@ -3351,7 +3223,6 @@ func withOffPageAnnotation(dst string, hidden bool) error {
 	}
 	return withAnnotation(dst, annot)
 }
-
 
 // chdirRepoRoot walks up from the current working directory to find the
 // pdfa11y repo root and changes to it. We look for the internal/checks

@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -48,7 +47,7 @@ func Build(path string, results []engine.Result) Document {
 			Suggestions:   sum.Infos,
 		},
 	}
-	doc.Categories = groupByCategory(results)
+	doc.Groups = groupByVerdict(results)
 	return doc
 }
 
@@ -156,28 +155,45 @@ type pageData struct {
 
 // Document is the per-PDF view passed to the template.
 type Document struct {
-	Filename   string
-	Verdict    string
-	Summary    Summary
-	Categories []Category
+	Filename string
+	Verdict  string
+	Summary  Summary
+	Groups   []Group
 }
 
 func (d Document) VerdictClass() string { return strings.ToLower(d.Verdict) }
+
+// HasGroup reports whether a verdict group with the given slug is
+// present (non-empty), so the summary can link a stat to its section
+// only when that section actually exists.
+func (d Document) HasGroup(slug string) bool {
+	for _, g := range d.Groups {
+		if g.Slug == slug {
+			return true
+		}
+	}
+	return false
+}
 
 type Summary struct {
 	Passed, NotApplicable, Failed, Total, Errors, Warnings, Suggestions int
 }
 
-type Category struct {
-	Name    string
+// Group bundles checks sharing a verdict bucket, in display order.
+type Group struct {
+	Label   string
+	Slug    string
+	Count   int
 	Results []Result
 }
 
 type Result struct {
 	ID          string
 	Title       string
+	Category    string
 	Description string
 	State       string
+	DotClass    string // verdict-bucket slug for the status dot (suggestion != pass)
 	WCAG        string
 	Findings    []Finding
 }
@@ -213,26 +229,71 @@ func formatLocation(loc *engine.Location) string {
 	return strings.Join(parts, ", ")
 }
 
-func groupByCategory(results []engine.Result) []Category {
-	bucket := map[engine.Category][]engine.Result{}
-	for _, r := range results {
-		bucket[r.Check.Category()] = append(bucket[r.Check.Category()], r)
-	}
-	cats := make([]engine.Category, 0, len(bucket))
-	for c := range bucket {
-		cats = append(cats, c)
-	}
-	slices.Sort(cats)
+// verdictBuckets lists the verdict groups in display order; the index
+// is what bucketIndex returns.
+var verdictBuckets = []struct{ label, slug string }{
+	{"Failed", "fail"},
+	{"Warnings", "warn"},
+	{"Passed", "pass"},
+	{"Suggestions", "suggestion"},
+	{"Not applicable", "na"},
+}
 
-	out := make([]Category, 0, len(cats))
-	for _, c := range cats {
-		rs := bucket[c]
-		sort.Slice(rs, func(i, j int) bool { return rs[i].Check.ID() < rs[j].Check.ID() })
-		view := Category{Name: string(c), Results: make([]Result, 0, len(rs))}
-		for _, r := range rs {
-			view.Results = append(view.Results, buildResult(r))
+// bucketIndex maps a result to its verdict bucket. A passing check with
+// advisory (Info) findings lands in "Suggestions" though its badge stays
+// PASS.
+func bucketIndex(r engine.Result) int {
+	switch r.State() {
+	case engine.VerdictFail:
+		return 0
+	case engine.VerdictWarn:
+		return 1
+	case engine.VerdictNA:
+		return 4
+	default: // VerdictPass
+		if hasInfoFinding(r) {
+			return 3
 		}
-		out = append(out, view)
+		return 2
+	}
+}
+
+func hasInfoFinding(r engine.Result) bool {
+	for _, f := range r.Findings {
+		if f.Severity == engine.SeverityInfo {
+			return true
+		}
+	}
+	return false
+}
+
+// groupByVerdict buckets results by verdict in display order (Failed,
+// Warnings, Passed, Suggestions, Not applicable), omitting empty
+// buckets; within a bucket, by category then ID.
+func groupByVerdict(results []engine.Result) []Group {
+	buckets := make([][]engine.Result, len(verdictBuckets))
+	for _, r := range results {
+		buckets[bucketIndex(r)] = append(buckets[bucketIndex(r)], r)
+	}
+	out := make([]Group, 0, len(verdictBuckets))
+	for i, b := range verdictBuckets {
+		rs := buckets[i]
+		if len(rs) == 0 {
+			continue
+		}
+		sort.Slice(rs, func(a, c int) bool {
+			if rs[a].Check.Category() != rs[c].Check.Category() {
+				return rs[a].Check.Category() < rs[c].Check.Category()
+			}
+			return rs[a].Check.ID() < rs[c].Check.ID()
+		})
+		g := Group{Label: b.label, Slug: b.slug, Count: len(rs), Results: make([]Result, 0, len(rs))}
+		for _, r := range rs {
+			res := buildResult(r)
+			res.DotClass = b.slug
+			g.Results = append(g.Results, res)
+		}
+		out = append(out, g)
 	}
 	return out
 }
@@ -241,6 +302,7 @@ func buildResult(r engine.Result) Result {
 	rv := Result{
 		ID:          r.Check.ID(),
 		Title:       r.Check.Title(),
+		Category:    string(r.Check.Category()),
 		Description: r.Check.Description(),
 		State:       r.State().String(),
 		WCAG:        strings.Join(r.Check.WCAG(), ", "),
@@ -271,11 +333,11 @@ const reportTemplate = `{{range $i, $doc := .Documents}}
   </div>
 
   <table class="stats">
-    <tr><td class="num">{{$doc.Summary.Passed}} / {{$doc.Summary.Total}}</td><td class="label">checks passed</td></tr>
-    {{if $doc.Summary.NotApplicable}}<tr><td class="num">{{$doc.Summary.NotApplicable}}</td><td class="label">not applicable</td></tr>{{end}}
-    <tr><td class="num">{{$doc.Summary.Errors}}</td><td class="label">error{{if ne $doc.Summary.Errors 1}}s{{end}}</td></tr>
-    <tr><td class="num">{{$doc.Summary.Warnings}}</td><td class="label">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</td></tr>
-    {{if $doc.Summary.Suggestions}}<tr><td class="num">{{$doc.Summary.Suggestions}}</td><td class="label">suggestion{{if ne $doc.Summary.Suggestions 1}}s{{end}}</td></tr>{{end}}
+    {{if $doc.HasGroup "pass"}}<tr><td class="num"><a href="#g-pass">{{$doc.Summary.Passed}} / {{$doc.Summary.Total}}</a></td><td class="label"><a href="#g-pass">checks passed</a></td></tr>{{else}}<tr><td class="num">{{$doc.Summary.Passed}} / {{$doc.Summary.Total}}</td><td class="label">checks passed</td></tr>{{end}}
+    {{if $doc.HasGroup "fail"}}<tr><td class="num"><a href="#g-fail">{{$doc.Summary.Errors}}</a></td><td class="label"><a href="#g-fail">error{{if ne $doc.Summary.Errors 1}}s{{end}}</a></td></tr>{{else}}<tr><td class="num">{{$doc.Summary.Errors}}</td><td class="label">error{{if ne $doc.Summary.Errors 1}}s{{end}}</td></tr>{{end}}
+    {{if $doc.HasGroup "warn"}}<tr><td class="num"><a href="#g-warn">{{$doc.Summary.Warnings}}</a></td><td class="label"><a href="#g-warn">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</a></td></tr>{{else}}<tr><td class="num">{{$doc.Summary.Warnings}}</td><td class="label">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</td></tr>{{end}}
+    {{if $doc.Summary.Suggestions}}<tr><td class="num"><a href="#g-suggestion">{{$doc.Summary.Suggestions}}</a></td><td class="label"><a href="#g-suggestion">suggestion{{if ne $doc.Summary.Suggestions 1}}s{{end}}</a></td></tr>{{end}}
+    {{if $doc.Summary.NotApplicable}}<tr><td class="num"><a href="#g-na">{{$doc.Summary.NotApplicable}}</a></td><td class="label"><a href="#g-na">not applicable</a></td></tr>{{end}}
   </table>
 
   <p class="meta">Generated {{$.GeneratedAt}} by pdfa11y{{with $.Version}} v{{.}}{{end}}</p>
@@ -284,14 +346,15 @@ const reportTemplate = `{{range $i, $doc := .Documents}}
 <section class="report-page">
   <h2>Findings</h2>
   <p class="filename-line">{{$doc.Filename}}</p>
-  {{range $doc.Categories}}
-    <p class="category">{{.Name}}</p>
+  {{range $doc.Groups}}
+    <p class="group group-{{.Slug}}" id="g-{{.Slug}}">{{.Label}} ({{.Count}})</p>
     {{range .Results}}
       <article class="check check-{{.StateClass}}">
         <p class="check-head">
-          <span class="state state-{{.StateClass}}">{{.State}}</span>
+          <span class="state state-{{.DotClass}}">&#8226;</span>
           <span class="check-id">{{.ID}}</span>
           <span class="check-title">{{.Title}}</span>
+          <span class="check-cat">{{.Category}}</span>
         </p>
         {{if .Description}}<p class="description">{{.Description}}</p>{{end}}
         {{range .Findings}}

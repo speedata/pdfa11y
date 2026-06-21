@@ -15,6 +15,7 @@ import (
 // Options control formatting of the terminal report.
 type Options struct {
 	ShowWCAG bool // include WCAG mapping next to each finding
+	ShowNA   bool // include not-applicable checks and n/a sub-findings (hidden by default)
 	Color    bool // ANSI colors (reserved for later)
 }
 
@@ -31,8 +32,22 @@ func Write(w io.Writer, path string, results []engine.Result, opts Options) {
 		sum.Verdict(), sum.Total, sum.Passed, naPart, sum.Failed, sum.Errors, sum.Warnings, sum.Infos)
 
 	for _, r := range groupByCategory(results) {
+		// Skip a category whose checks are all N/A when N/A is hidden,
+		// so we do not print an empty "[category]" heading.
+		visible := r.results
+		if !opts.ShowNA {
+			visible = visible[:0:0]
+			for _, res := range r.results {
+				if res.State() != engine.VerdictNA {
+					visible = append(visible, res)
+				}
+			}
+			if len(visible) == 0 {
+				continue
+			}
+		}
 		fmt.Fprintf(w, "[%s]\n", r.category)
-		for _, res := range r.results {
+		for _, res := range visible {
 			writeResult(w, res, opts)
 		}
 		fmt.Fprintln(w)
@@ -73,9 +88,12 @@ func writeResult(w io.Writer, r engine.Result, opts Options) {
 	for _, f := range r.Findings {
 		// N/A findings are mode-information, not violations -- print
 		// them inline as a short note and skip the hint/location
-		// machinery, which would just be empty.
+		// machinery, which would just be empty. Hidden unless --show-na,
+		// since "nothing to inspect" lines are pure noise by default.
 		if f.Severity == engine.SeverityNotApplicable {
-			fmt.Fprintf(w, "        ↳ n/a: %s\n", f.Message)
+			if opts.ShowNA {
+				fmt.Fprintf(w, "        ↳ n/a: %s\n", f.Message)
+			}
 			continue
 		}
 		fmt.Fprintf(w, "        ↳ %s: %s\n", f.Severity, f.Message)
