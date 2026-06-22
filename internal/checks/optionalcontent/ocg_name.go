@@ -10,12 +10,19 @@ import (
 )
 
 // OCGName fails for every OCG (Optional Content Group, i.e. PDF
-// layer) that does not declare a /Name. PDF/UA-1 §7.13 and ISO
-// 32000-1 §8.11.2 require OCGs to carry a human-readable name so
-// the layer panel in AT-aware viewers can present the user a
+// layer) that does not declare a /Name. ISO 32000-1 Table 98 (and
+// ISO 32000-2 Table 96) make /Name a required entry on every OCG
+// dictionary so the layer panel in AT-aware viewers can present a
 // meaningful choice ("Drawing geometry", "Annotations", "Background
 // map"). Unnamed layers either appear blank in the panel or are
 // labelled with a synthetic identifier that is not meaningful.
+//
+// Known gap: PDF/UA-1 §7.10 / PDF/UA-2 §8.7 additionally require a
+// /Name on the optional content *configuration* dictionaries (the /D
+// default and every member of /Configs) when a non-empty /Configs is
+// present (Matterhorn 20-001/20-002). This check only inspects the
+// OCG dictionaries today, not the configuration dictionaries -- a
+// separate check for that requirement is future work.
 type OCGName struct{}
 
 func (OCGName) ID() string                { return "UA-20-001" }
@@ -25,7 +32,7 @@ func (OCGName) Severity() engine.Severity { return engine.SeverityError }
 func (OCGName) Spec() engine.Spec         { return engine.SpecBoth }
 func (OCGName) WCAG() []string            { return []string{"1.3.1"} }
 func (OCGName) Description() string {
-	return "PDF/UA-1 §7.13 / ISO 32000-1 §8.11.2 require every Optional Content Group to expose a /Name string so the user can identify the layer in the viewer's layer panel. Without /Name AT presents unnamed layers without a meaningful label."
+	return "ISO 32000-1 Table 98 / ISO 32000-2 Table 96 require every Optional Content Group to expose a /Name string so the user can identify the layer in the viewer's layer panel. Without /Name AT presents unnamed layers without a meaningful label. (PDF/UA-1 §7.10 / PDF/UA-2 §8.7 additionally require /Name on the optional content configuration dictionaries; that is not yet checked.)"
 }
 
 func (c OCGName) Run(doc model.Document) []engine.Finding {

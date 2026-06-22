@@ -23,6 +23,19 @@ import (
 // "structured heading without level", which has no meaningful position
 // in a numeric hierarchy. PDF 2.0 documents using only /H benefit from
 // a different check that is not yet implemented.
+//
+// This is a PDF/UA-1-only check. PDF/UA-2 deliberately drops the strict
+// sequential-level requirement: ISO 14289-2 §8.2.5.12 NOTE 2 states that,
+// unlike ISO 14289-1, "this document does not, in accordance with WCAG,
+// include such a requirement". So a UA-2 document with a leading H3 or an
+// H3 -> H5 jump is not a mechanical conformance failure (veraPDF agrees).
+// Whether the chosen levels are "appropriate" is a human judgement that no
+// mechanical check should make.
+//
+// UA-2 does add a *different* heading rule (§8.2.5.12): where a heading's
+// level is evident from its content -- e.g. "4.5.6 Foobar" is evidently
+// level 3 -- the Hn tag shall match. That is a separate, not-yet-
+// implemented check, not the sequencing rule enforced here.
 type Hierarchy struct{}
 
 func (Hierarchy) ID() string    { return "UA-14-003" }
@@ -32,7 +45,7 @@ func (Hierarchy) Description() string {
 }
 func (Hierarchy) Category() engine.Category { return engine.CategoryHeadings }
 func (Hierarchy) Severity() engine.Severity { return engine.SeverityError }
-func (Hierarchy) Spec() engine.Spec         { return engine.SpecBoth }
+func (Hierarchy) Spec() engine.Spec         { return engine.SpecPDFUA1 }
 func (Hierarchy) WCAG() []string            { return []string{"1.3.1", "2.4.6"} }
 
 type occurrence struct {

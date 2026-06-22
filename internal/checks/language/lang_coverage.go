@@ -15,6 +15,13 @@ import (
 // own. With a Catalog /Lang every element inherits the default, so
 // per-element coverage is not required and the check declines (N/A).
 //
+// Spec gating: PDF/UA-1 only. The "Catalog and/or per element"
+// substitution this check models exists solely in ISO 14289-1 §7.2.
+// ISO 14289-2 §8.4.4 removes the flexibility -- a non-empty Catalog
+// /Lang is mandatory, and per-element /Lang only marks language
+// *changes* -- so under UA-2 a missing Catalog /Lang is already a
+// violation (UA-11-001's domain) regardless of per-element coverage.
+//
 // "Text-bearing" is defined pragmatically as the set of standard tags
 // that carry the document's prose: P, H/H1-H6, Span, Lbl, LBody, TD,
 // TH, Caption, Note, BibEntry, Quote, Reference, TOCI. Containers
@@ -28,7 +35,7 @@ func (LangCoverage) ID() string                { return "UA-11-002" }
 func (LangCoverage) Title() string             { return "Text-bearing structure elements declare /Lang" }
 func (LangCoverage) Category() engine.Category { return engine.CategoryNaturalLanguage }
 func (LangCoverage) Severity() engine.Severity { return engine.SeverityError }
-func (LangCoverage) Spec() engine.Spec         { return engine.SpecBoth }
+func (LangCoverage) Spec() engine.Spec         { return engine.SpecPDFUA1 }
 func (LangCoverage) WCAG() []string            { return []string{"3.1.1", "3.1.2"} }
 func (LangCoverage) Description() string {
 	return "PDF/UA-1 §7.2 allows the document's natural language to be declared either at the Catalog or per structure element. The Catalog form is covered by UA-11-001; this check verifies the per-element coverage when the Catalog form is absent. Every text-bearing element (P, H/H1-H6, Span, Lbl, LBody, TD, TH, Caption, Note, BibEntry, Quote, Reference, TOCI) must carry /Lang or inherit it from an ancestor."

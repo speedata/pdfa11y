@@ -18,6 +18,11 @@ import (
 // EncryptedPayload, FormData, Schema, Unspecified). PDF/UA leans on
 // this for AT-driven enumeration of supplementary material.
 //
+// Spec gating: Associated Files are an ISO 32000-2 (PDF 2.0) feature.
+// ISO 14289-1 / PDF 1.7 has no /AF mechanism, so the requirement lives
+// only in ISO 14289-2 (§8.9.2.4.10, §7.6.3) -- this check is PDF/UA-2
+// only.
+//
 // Limitation: only catalog- and page-level /AF arrays are walked
 // today. Annotation- and XObject-level /AF arrays will produce false
 // negatives until the backend exposes them. The walker reports the
@@ -29,7 +34,7 @@ func (AFRelationship) ID() string                { return "UA-12-001" }
 func (AFRelationship) Title() string             { return "Associated Files declare /AFRelationship" }
 func (AFRelationship) Category() engine.Category { return engine.CategoryEmbeddedFiles }
 func (AFRelationship) Severity() engine.Severity { return engine.SeverityError }
-func (AFRelationship) Spec() engine.Spec         { return engine.SpecBoth }
+func (AFRelationship) Spec() engine.Spec         { return engine.SpecPDFUA2 }
 func (AFRelationship) WCAG() []string            { return []string{"1.3.1"} }
 func (AFRelationship) Description() string {
 	return "ISO 32000-2 §14.13 (Associated Files) requires every filespec referenced from an /AF array to declare /AFRelationship -- a Name that classifies the file's role (Source, Data, Supplement, ...). PDF/UA leans on this entry for AT-driven enumeration of supplementary material; without it consumers cannot describe the file's purpose."

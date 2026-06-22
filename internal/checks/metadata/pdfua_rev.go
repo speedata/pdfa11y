@@ -16,9 +16,11 @@ import (
 // pdfuaid identifier at all, so this check fires only when part is
 // present but rev is not.
 //
-// Spec gating: ISO 14289-2 §5 spells out both properties as
-// Required. The ISO 14289-1 schema also defines pdfuaid:rev, so
-// the check applies to both UA-1 and UA-2 files.
+// Spec gating: pdfuaid:rev exists only in ISO 14289-2 (§5 Table 1,
+// Required). The ISO 14289-1 schema has no rev property -- it uses
+// the optional pdfuaid:amd and pdfuaid:corr instead -- so this check
+// is PDF/UA-2 only. Run on a UA-1 file it would false-positive on
+// every conforming document (which correctly omits rev).
 type PDFUARevision struct{}
 
 func (PDFUARevision) ID() string    { return "UA-06-006" }
@@ -28,7 +30,7 @@ func (PDFUARevision) Description() string {
 }
 func (PDFUARevision) Category() engine.Category { return engine.CategoryMetadata }
 func (PDFUARevision) Severity() engine.Severity { return engine.SeverityError }
-func (PDFUARevision) Spec() engine.Spec         { return engine.SpecBoth }
+func (PDFUARevision) Spec() engine.Spec         { return engine.SpecPDFUA2 }
 func (PDFUARevision) WCAG() []string            { return nil }
 
 func (c PDFUARevision) Run(doc model.Document) []engine.Finding {

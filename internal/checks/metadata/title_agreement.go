@@ -18,6 +18,13 @@ import (
 // show different titles depending on which surface the consumer
 // looks at -- this check catches that.
 //
+// Severity Warning: neither ISO 14289-1 nor -2 actually requires the
+// two title fields to match (UA-1 §7.1 even says conforming readers
+// "shall ignore" the DocumentInfo dictionary, and UA-2 deprecates it),
+// so a mismatch is a heuristic suspicion, not a hard spec violation.
+// Per the project convention it stays a Warning and is promoted to
+// Error only under --strict.
+//
 // Limitation: the XMP side is parsed with a small regex over the raw
 // stream, same approach as UA-06-004. Namespace prefixes other than
 // "dc" or unusual structural variants will produce false negatives.
@@ -28,11 +35,11 @@ type TitleAgreement struct{}
 func (TitleAgreement) ID() string                { return "UA-06-005" }
 func (TitleAgreement) Title() string             { return "DocumentInfo /Title and XMP dc:title agree" }
 func (TitleAgreement) Category() engine.Category { return engine.CategoryMetadata }
-func (TitleAgreement) Severity() engine.Severity { return engine.SeverityError }
+func (TitleAgreement) Severity() engine.Severity { return engine.SeverityWarning }
 func (TitleAgreement) Spec() engine.Spec         { return engine.SpecBoth }
 func (TitleAgreement) WCAG() []string            { return []string{"2.4.2"} }
 func (TitleAgreement) Description() string {
-	return "When a document declares both DocumentInfo /Title and XMP dc:title they must express the same title. PDF/UA-1 §7.1 makes XMP dc:title the normative source (UA-06-004), and PDF 2.0 / PDF/UA-2 deprecate the DocumentInfo dictionary -- but legacy consumers still read DocumentInfo, so a mismatch leaves them announcing a different title than AT does. When only one of the two is present the check declines (N/A)."
+	return "When a document declares both DocumentInfo /Title and XMP dc:title they should express the same title. PDF/UA-1 §7.1 makes XMP dc:title the normative source (UA-06-004), and PDF 2.0 / PDF/UA-2 deprecate the DocumentInfo dictionary -- but legacy consumers still read DocumentInfo, so a mismatch leaves them announcing a different title than AT does. No spec mandates the match, so this is a Warning (promoted to Error under --strict). When only one of the two is present the check declines (N/A)."
 }
 
 // dc:title may be a bare element or wrap an rdf:Alt with rdf:li per
@@ -77,7 +84,7 @@ func (c TitleAgreement) Run(doc model.Document) []engine.Finding {
 	}
 	return []engine.Finding{{
 		CheckID:  c.ID(),
-		Severity: engine.SeverityError,
+		Severity: engine.SeverityWarning,
 		Message:  "DocumentInfo /Title and XMP dc:title differ: " + quote(infoTitle) + " vs " + quote(xmp),
 		Hint:     "Synchronise the two title fields: most authoring tools have a single 'document title' input that should populate both DocumentInfo /Title and XMP dc:title.",
 	}}

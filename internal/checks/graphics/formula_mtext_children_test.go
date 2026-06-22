@@ -23,9 +23,10 @@ func TestMTextChildren(t *testing.T) {
 			"",
 		},
 		{
-			"non-whitelisted known PDF tag fails",
+			// BPG-based heuristic, not an ISO 14289-2 "shall" -> Warning.
+			"non-whitelisted known PDF tag warns",
 			"testdata/mtext-children-bad.pdf",
-			engine.VerdictFail,
+			engine.VerdictWarn,
 			`mtext child "P"`,
 		},
 		{

@@ -10,17 +10,19 @@ import (
 
 func TestPageTabs(t *testing.T) {
 	tests := []struct {
-		name         string
-		fixture      string
-		wantPass     bool
-		wantFindings int
+		name      string
+		fixture   string
+		wantState engine.Verdict
 	}{
-		{"/Tabs = S passes", "testdata/tabs-s.pdf", true, 0},
-		{"/Tabs = R fails", "testdata/tabs-r.pdf", false, 1},
+		{"/Tabs = S passes", "testdata/tabs-s.pdf", engine.VerdictPass},
+		{"/Tabs = R fails", "testdata/tabs-r.pdf", engine.VerdictFail},
 		// PDF/UA-2 §8.9.3.3 widens the allowed set to S, A, W.
-		{"PDF/UA-2 /Tabs = A passes", "testdata/tabs-a-ua2.pdf", true, 0},
-		{"PDF/UA-2 /Tabs = W passes", "testdata/tabs-w-ua2.pdf", true, 0},
-		{"PDF/UA-2 /Tabs = R still fails", "testdata/tabs-r-ua2.pdf", false, 1},
+		{"PDF/UA-2 /Tabs = A passes", "testdata/tabs-a-ua2.pdf", engine.VerdictPass},
+		{"PDF/UA-2 /Tabs = W passes", "testdata/tabs-w-ua2.pdf", engine.VerdictPass},
+		{"PDF/UA-2 /Tabs = R still fails", "testdata/tabs-r-ua2.pdf", engine.VerdictFail},
+		// The requirement binds only to pages with an annotation: a bad
+		// /Tabs on an annotation-free page is N/A, not a failure.
+		{"bad /Tabs but no annotation is N/A", "testdata/tabs-no-annot.pdf", engine.VerdictNA},
 	}
 
 	check := taborder.PageTabs{}
@@ -30,29 +32,25 @@ func TestPageTabs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load fixture: %v", err)
 			}
-			findings := check.Run(doc)
-			result := engine.Result{Check: check, Findings: findings}
-			if got := result.Passed(); got != tc.wantPass {
-				t.Fatalf("Passed() = %v, want %v (findings: %+v)", got, tc.wantPass, findings)
-			}
-			if len(findings) != tc.wantFindings {
-				t.Fatalf("findings = %d, want %d (%+v)", len(findings), tc.wantFindings, findings)
+			result := engine.Result{Check: check, Findings: check.Run(doc)}
+			if got := result.State(); got != tc.wantState {
+				t.Fatalf("State() = %v, want %v (findings: %+v)", got, tc.wantState, result.Findings)
 			}
 		})
 	}
 }
 
-// TestPageTabs_Missing asserts a page without /Tabs (and no inherited
-// /Tabs) fails, matching the empty-string branch in the check.
+// TestPageTabs_Missing asserts a page that carries an annotation but
+// has no /Tabs (nor an inherited one) fails.
 func TestPageTabs_Missing(t *testing.T) {
-	doc, err := pdf.LoadFile("../metadata/testdata/no-title.pdf")
+	doc, err := pdf.LoadFile("testdata/tabs-missing.pdf")
 	if err != nil {
 		t.Fatalf("load fixture: %v", err)
 	}
 	check := taborder.PageTabs{}
 	result := engine.Result{Check: check, Findings: check.Run(doc)}
-	if result.Passed() {
-		t.Fatalf("Passed() = true on a page lacking /Tabs; want false (findings: %+v)", result.Findings)
+	if result.State() != engine.VerdictFail {
+		t.Fatalf("State() = %v on a page lacking /Tabs; want FAIL (findings: %+v)", result.State(), result.Findings)
 	}
 	if len(result.Findings) != 1 {
 		t.Errorf("findings = %d, want 1 (%+v)", len(result.Findings), result.Findings)

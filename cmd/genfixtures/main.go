@@ -249,14 +249,6 @@ func run() error {
 		"Watermark", true); err != nil {
 		return err
 	}
-	if err := withOffPageAnnotation("internal/checks/annotations/testdata/offpage-hidden.pdf",
-		true); err != nil {
-		return err
-	}
-	if err := withOffPageAnnotation("internal/checks/annotations/testdata/offpage-visible.pdf",
-		false); err != nil {
-		return err
-	}
 
 	// UA-15-004 / UA-15-005: Table row child types and TH /Scope.
 	if err := withTableRow("internal/checks/tables/testdata/table-row-cells.pdf",
@@ -456,13 +448,25 @@ func run() error {
 		return err
 	}
 
-	// UA-08-001: page /Tabs = S.
+	// UA-08-001: page with an annotation and /Tabs = S passes; /Tabs = R
+	// fails. The annotation is what makes the requirement apply.
 	if err := withTabs("internal/checks/taborder/testdata/tabs-s.pdf",
-		"S"); err != nil {
+		"S", true); err != nil {
 		return err
 	}
 	if err := withTabs("internal/checks/taborder/testdata/tabs-r.pdf",
-		"R"); err != nil {
+		"R", true); err != nil {
+		return err
+	}
+	// UA-08-001: annotation present but no /Tabs at all -> fail.
+	if err := withTabs("internal/checks/taborder/testdata/tabs-missing.pdf",
+		"", true); err != nil {
+		return err
+	}
+	// UA-08-001: bad /Tabs but no annotation -> N/A (requirement does
+	// not apply to annotation-free pages).
+	if err := withTabs("internal/checks/taborder/testdata/tabs-no-annot.pdf",
+		"R", false); err != nil {
 		return err
 	}
 	// UA-14-009: Note structure type forbidden in PDF/UA-2.
@@ -2166,9 +2170,12 @@ func extendPages(xrt *pdfmodel.XRefTable, total int) error {
 	return nil
 }
 
-// withTabs sets /Tabs on the first page to tabs ("S", "R", "C").
-// UA-08-001 passes only on "S".
-func withTabs(dst, tabs string) error {
+// withTabs sets /Tabs on the first page to tabs ("S", "R", "C"); an
+// empty tabs string omits /Tabs entirely (the missing-/Tabs case).
+// When annot is true a Link annotation is added to the page, which is
+// what makes the /Tabs requirement apply (UA-08-001 only binds to
+// pages that carry an annotation). UA-08-001 passes only on "S".
+func withTabs(dst, tabs string, annot bool) error {
 	ctx, err := api.ReadContextFile(basePath)
 	if err != nil {
 		return err
@@ -2187,7 +2194,22 @@ func withTabs(dst, tabs string) error {
 	if err != nil {
 		return err
 	}
-	pageDict["Tabs"] = types.Name(tabs)
+	if tabs != "" {
+		pageDict["Tabs"] = types.Name(tabs)
+	}
+	if annot {
+		link := types.Dict{
+			"Type":    types.Name("Annot"),
+			"Subtype": types.Name("Link"),
+			"Rect":    types.Array{types.Integer(10), types.Integer(10), types.Integer(50), types.Integer(50)},
+			"P":       kids[0],
+		}
+		linkRef, err := xrt.IndRefForNewObject(link)
+		if err != nil {
+			return err
+		}
+		pageDict["Annots"] = types.Array{*linkRef}
+	}
 	return writeAndLog(ctx, dst)
 }
 
@@ -2640,20 +2662,24 @@ func withTabsUA2(dst, tabs string) error {
 	buf.WriteString("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
 	off3 := offset()
 	fmt.Fprintf(&buf,
-		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Tabs /%s >>\nendobj\n",
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Tabs /%s /Annots [5 0 R] >>\nendobj\n",
 		tabs)
 	off4 := offset()
 	fmt.Fprintf(&buf,
 		"4 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(xmp))
 	buf.Write(xmp)
 	buf.WriteString("\nendstream\nendobj\n")
+	// An annotation on the page is what makes the /Tabs requirement
+	// apply (ISO 14289-2 §8.9.3.3).
+	off5 := offset()
+	buf.WriteString("5 0 obj\n<< /Type /Annot /Subtype /Link /Rect [10 10 50 50] >>\nendobj\n")
 
 	xrefOff := offset()
-	buf.WriteString("xref\n0 5\n0000000000 65535 f \n")
-	for _, o := range []int{off1, off2, off3, off4} {
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, o := range []int{off1, off2, off3, off4, off5} {
 		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
 	}
-	buf.WriteString("trailer\n<< /Size 5 /Root 1 0 R >>\n")
+	buf.WriteString("trailer\n<< /Size 6 /Root 1 0 R >>\n")
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
@@ -3202,24 +3228,6 @@ func withArtifactAnnotation(dst, subtype string, withStructParent bool) error {
 	}
 	if withStructParent {
 		annot["StructParent"] = types.Integer(0)
-	}
-	return withAnnotation(dst, annot)
-}
-
-// withOffPageAnnotation builds a Text annotation whose /Rect sits well
-// outside the 612×792 MediaBox. hidden toggles the /F Hidden bit (2);
-// without it UA-28-008 fires. /StructParent is set so UA-28-004 stays
-// silent and the fixture isolates the off-page concern.
-func withOffPageAnnotation(dst string, hidden bool) error {
-	annot := types.Dict{
-		"Type":         types.Name("Annot"),
-		"Subtype":      types.Name("Text"),
-		"Rect":         types.Array{types.Integer(2000), types.Integer(2000), types.Integer(2100), types.Integer(2100)},
-		"Contents":     types.StringLiteral("off-page"),
-		"StructParent": types.Integer(0),
-	}
-	if hidden {
-		annot["F"] = types.Integer(2)
 	}
 	return withAnnotation(dst, annot)
 }

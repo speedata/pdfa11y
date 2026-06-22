@@ -6,20 +6,29 @@ package language
 import (
 	"github.com/speedata/pdfa11y/internal/engine"
 	"github.com/speedata/pdfa11y/internal/model"
+	"github.com/speedata/pdfa11y/internal/pdfua"
 )
 
-// CatalogLang warns when the document has no /Lang entry at the Catalog
-// level. PDF/UA-1 §7.2 allows declaring natural language either at the
-// Catalog or per structure element, so a missing Catalog /Lang is not
-// definitively a violation — it requires the structure-element coverage to
-// pick up the slack. Until that coverage check exists, we report a warning
-// rather than a hard error.
+// CatalogLang reports when the document has no /Lang entry at the
+// Catalog level. Its severity is spec-dependent:
+//
+//   - PDF/UA-1 §7.2 allows natural language to be declared at the
+//     Catalog AND/OR per structure element, so a missing Catalog /Lang
+//     is not by itself a violation -- per-element /Lang (UA-11-002) can
+//     compensate. Severity Warning.
+//   - PDF/UA-2 §8.4.4 tightens this to an unconditional "shall": a
+//     non-empty /Lang in the Catalog is mandatory and per-element /Lang
+//     only marks language changes. Severity Error.
+//
+// Known limitation: §8.4.4 also requires the value to be non-empty; we
+// only test for presence today (the model exposes no string accessor
+// for the /Lang value).
 type CatalogLang struct{}
 
 func (CatalogLang) ID() string    { return "UA-11-001" }
 func (CatalogLang) Title() string { return "Document declares a primary language" }
 func (CatalogLang) Description() string {
-	return "PDF/UA-1 §7.2 requires the document's natural language to be declared either as /Lang on the catalog or per structure element. Severity is Warning because per-element declarations may compensate; structure-element coverage is not yet verified by this tool."
+	return "PDF/UA-1 §7.2 lets the document's natural language be declared as /Lang on the catalog OR per structure element, so a missing Catalog /Lang is a Warning (per-element coverage may compensate, see UA-11-002). PDF/UA-2 §8.4.4 makes a non-empty Catalog /Lang mandatory, so the same omission is a hard Error under PDF/UA-2."
 }
 func (CatalogLang) Category() engine.Category { return engine.CategoryNaturalLanguage }
 func (CatalogLang) Severity() engine.Severity { return engine.SeverityWarning }
@@ -36,10 +45,19 @@ func (c CatalogLang) Run(doc model.Document) []engine.Finding {
 		}}
 	}
 	if _, found := catalog.Find("Lang"); !found {
+		// Severity is spec-dependent: a missing Catalog /Lang is a hard
+		// violation under PDF/UA-2 (§8.4.4) but only a Warning under
+		// PDF/UA-1 (§7.2), where per-element /Lang can compensate.
+		severity := engine.SeverityWarning
+		msg := "no /Lang at the Catalog — natural language may still be declared per structure element"
+		if part, ok, _ := pdfua.DetectPart(doc); ok && part == 2 {
+			severity = engine.SeverityError
+			msg = "no /Lang at the Catalog — PDF/UA-2 §8.4.4 requires a non-empty Catalog /Lang"
+		}
 		return []engine.Finding{{
 			CheckID:  c.ID(),
-			Severity: engine.SeverityWarning,
-			Message:  "no /Lang at the Catalog — natural language may still be declared per structure element",
+			Severity: severity,
+			Message:  msg,
 			Hint:     "Set the primary language at the Catalog (e.g. /Lang (en-US)); for mixed-language documents, also set /Lang on the relevant structure elements.",
 		}}
 	}

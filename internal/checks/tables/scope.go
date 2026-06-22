@@ -17,9 +17,15 @@ import (
 //
 // Valid values: Row, Column, Both.
 //
-// Severity Error: missing /Scope on a TH is a hard PDF/UA failure,
+// Severity Error: missing /Scope on a TH is a hard PDF/UA-1 failure,
 // distinct from UA-16-003 (ListNumbering) where the spec allows
-// omission. Here the spec is unambiguous.
+// omission.
+//
+// Spec gating: PDF/UA-1 only. ISO 14289-1 §7.5 requires /Scope on
+// every TH unconditionally. ISO 14289-2 §8.2.5.26 makes it conditional
+// -- Scope is required only when the algorithm-derived default Scope is
+// insufficient -- so an unconditional check would false-positive on
+// conforming UA-2 tables.
 type Scope struct{}
 
 func (Scope) ID() string    { return "UA-15-005" }
@@ -29,7 +35,7 @@ func (Scope) Description() string {
 }
 func (Scope) Category() engine.Category { return engine.CategoryTables }
 func (Scope) Severity() engine.Severity { return engine.SeverityError }
-func (Scope) Spec() engine.Spec         { return engine.SpecBoth }
+func (Scope) Spec() engine.Spec         { return engine.SpecPDFUA1 }
 func (Scope) WCAG() []string            { return []string{"1.3.1"} }
 
 func (c Scope) Run(doc model.Document) []engine.Finding {

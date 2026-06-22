@@ -12,11 +12,13 @@ func TestTitleAgreement(t *testing.T) {
 	tests := []struct {
 		name         string
 		fixture      string
-		wantPass     bool
+		wantState    engine.Verdict
 		wantFindings int
 	}{
-		{"matching titles pass", "testdata/title-agreement-ok.pdf", true, 0},
-		{"diverging titles fail", "testdata/title-agreement-mismatch.pdf", false, 1},
+		{"matching titles pass", "testdata/title-agreement-ok.pdf", engine.VerdictPass, 0},
+		// No spec mandates the match, so a mismatch warns (not fails);
+		// --strict promotes it back to an error.
+		{"diverging titles warn", "testdata/title-agreement-mismatch.pdf", engine.VerdictWarn, 1},
 	}
 
 	check := metadata.TitleAgreement{}
@@ -28,8 +30,8 @@ func TestTitleAgreement(t *testing.T) {
 			}
 			findings := check.Run(doc)
 			result := engine.Result{Check: check, Findings: findings}
-			if got := result.Passed(); got != tc.wantPass {
-				t.Fatalf("Passed() = %v, want %v (findings: %+v)", got, tc.wantPass, findings)
+			if got := result.State(); got != tc.wantState {
+				t.Fatalf("State() = %v, want %v (findings: %+v)", got, tc.wantState, findings)
 			}
 			if len(findings) != tc.wantFindings {
 				t.Fatalf("findings = %d, want %d (%+v)", len(findings), tc.wantFindings, findings)

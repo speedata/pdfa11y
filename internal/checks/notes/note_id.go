@@ -1,5 +1,5 @@
 // Package notes groups checks that inspect the Note / Reference
-// structure types and the cross-links between them (PDF/UA-1 §7.10).
+// structure types and the cross-links between them (PDF/UA-1 §7.9).
 package notes
 
 import (
@@ -24,16 +24,23 @@ import (
 // of /ID values that exist anywhere in the tree, pass 2 walks the
 // tree again and verifies (a) every Note has /ID and (b) every
 // /Ref-target has an /ID present in that set.
+//
+// Spec gating: PDF/UA-1 only. The Note + /ID anchoring model is
+// ISO 14289-1 §7.9 (Matterhorn 19-003/19-004). PDF/UA-2 replaces Note
+// with FENote and builds cross-references on the /Ref entry (§8.2.5.14,
+// §8.8) with no /ID requirement -- so on a conforming UA-2 file this
+// check would false-positive (the Note half is also already covered by
+// UA-14-009, which forbids Note in UA-2).
 type NoteID struct{}
 
 func (NoteID) ID() string                { return "UA-19-001" }
 func (NoteID) Title() string             { return "Notes carry /ID and references resolve" }
 func (NoteID) Category() engine.Category { return engine.CategoryNotes }
 func (NoteID) Severity() engine.Severity { return engine.SeverityError }
-func (NoteID) Spec() engine.Spec         { return engine.SpecBoth }
+func (NoteID) Spec() engine.Spec         { return engine.SpecPDFUA1 }
 func (NoteID) WCAG() []string            { return []string{"1.3.1", "2.4.4"} }
 func (NoteID) Description() string {
-	return "PDF/UA-1 §7.10 requires Note structure elements to carry an /ID so other elements (typically Reference) can target them, and requires every /Ref to resolve to an existing tagged element. Without /ID a Note cannot be reached as a labelled anchor; a /Ref targeting an untagged or /ID-less element produces a broken cross-reference."
+	return "PDF/UA-1 §7.9 requires Note structure elements to carry an /ID so other elements (typically Reference) can target them, and requires every /Ref to resolve to an existing tagged element. Without /ID a Note cannot be reached as a labelled anchor; a /Ref targeting an untagged or /ID-less element produces a broken cross-reference."
 }
 
 func (c NoteID) Run(doc model.Document) []engine.Finding {
