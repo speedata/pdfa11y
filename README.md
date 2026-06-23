@@ -21,17 +21,64 @@ with role-map resolution, font enumeration with /ToUnicode CMap
 parsing, XMP introspection, content-stream tokenisation (used
 fonts, MCID consistency, untagged content, per-font code coverage,
 MCID bounding boxes for reading-order heuristics), annotation
-walking, and tri-state reporting are in place. Validated against
-the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
-(82 reference PDFs); current match rate is 72%, with 0 known
-false positives -- divergences from PAC are stricter findings or
-Matterhorn human checks that need a person in the loop.
+walking, and tri-state reporting are in place. Cross-validated
+against the [pdfa.org technique sample corpus](https://pdfa.org/techniques-for-accessible-pdf/)
+(82 reference PDFs); divergences from PAC are typically stricter
+findings on pdfa11y's side or Matterhorn conditions that need a
+human reviewer. See [Development](#development) to reproduce the
+cross-validation locally.
 
 Run `pdfa11y --list-rules` for the current, build-specific list of registered checks.
 
 Still missing: font-glyph-level encoding analysis, finer-grained
 reading-order checks (within-tag MCID order, sidebar placement),
-parallel batch processing. See [Roadmap](#roadmap).
+parallel batch processing.
+
+## How it compares
+
+PAC and veraPDF are the established PDF/UA checkers, and pdfa11y does
+not try to replace them for formal validation. veraPDF is the
+ISO-backed reference validator for the complete PDF/UA rule set; PAC
+is the desktop tool most accessibility practitioners reach for.
+pdfa11y deliberately implements the machine-checkable subset of the
+Matterhorn conditions, and optimises for the cases the other two
+leave awkward:
+
+- **Scriptable and CI-native.** A single static Go binary. No JVM,
+  no GUI. Meaningful exit codes, JSON Lines for streaming, and a
+  stable JSON schema for tooling. PAC is a Windows desktop
+  application; veraPDF needs a Java runtime.
+- **Cross-platform.** Native Linux, macOS and Windows binaries (the
+  macOS build is signed and notarized). PAC is Windows-only.
+- **Actionable findings.** Every finding carries a plain-language
+  hint plus a WCAG mapping and the spec clause it derives from, so
+  the report tells an author what to change — not just that something
+  is wrong. veraPDF emits a machine compliance report; PAC reports
+  pass/fail per check.
+- **PDF/UA-2 aware.** The spec is auto-detected per document from
+  `pdfuaid:part`, and the UA-1 vs UA-2 differences (heading model,
+  `FENote`, the PDF 2.0 namespace, XFA removal) are modelled rather
+  than retrofitted.
+- **Self-checking output.** The optional PDF report is itself a
+  tagged PDF/UA-1 document and passes pdfa11y's own checks.
+- **Permissive license.** MIT, so it can be embedded in commercial
+  pipelines; veraPDF is GPL/MPL, PAC is proprietary.
+
+| | pdfa11y | PAC | veraPDF |
+| --- | --- | --- | --- |
+| Interface | CLI + JSON/JSONL | desktop GUI | CLI / Java API / REST |
+| Platforms | Linux, macOS, Windows | Windows only | any with a JVM |
+| CI-native | yes (exit codes, JSONL) | no | yes |
+| Per-finding fix hints | yes | some | spec clause only |
+| Rule coverage | machine-checkable subset | comprehensive | comprehensive (ISO reference) |
+| License | MIT | proprietary | GPL/MPL |
+
+For an exhaustive, audit-grade PDF/UA verdict, veraPDF remains the
+reference. pdfa11y is the lightweight, embeddable, developer- and
+author-friendly checker that sits next to it — and is cross-validated
+against the same pdfa.org corpus, where the remaining divergences are
+stricter findings on pdfa11y's side or Matterhorn conditions that
+need a human reviewer.
 
 ## Install
 
@@ -46,7 +93,7 @@ From source:
 go install github.com/speedata/pdfa11y/cmd/pdfa11y@latest
 ```
 
-Requires Go 1.23 or later.
+Requires Go 1.25 or later.
 
 ## Usage
 
@@ -87,11 +134,11 @@ The check set currently spans these Matterhorn categories:
 
 | Schedule | Coverage |
 | --- | --- |
-| 01 Real content / Structure tree | MarkInfo, StructTreeRoot, MCID consistency, untagged content, custom-tag role-map, reading-order heuristic (G4 family) |
-| 06 Metadata | DocInfo title, XMP `dc:title`, `pdfuaid:part`, title agreement |
+| 01 Real content / Structure tree | MarkInfo, StructTreeRoot, MCID consistency, untagged content, custom-tag role-map |
+| 06 Metadata | XMP `dc:title`, `pdfuaid:part`, `pdfuaid:rev`, DocInfo/XMP title agreement |
 | 07 Viewer preferences | DisplayDocTitle |
 | 08 Tab order | `/Tabs` = S |
-| 09 Fonts | Embedding, `/ToUnicode` presence + coverage, no Type 1 fonts in PDF/UA-2, CIDFontType2 `/CIDToGIDMap` |
+| 09 Fonts | Embedding, `/ToUnicode` presence + coverage, CIDFontType2 `/CIDToGIDMap` |
 | 11 Natural language | Catalog `/Lang`, per-element `/Lang` coverage |
 | 12 Embedded files | Associated Files declare `/AFRelationship` |
 | 13 Graphics | Figure Alt / ActualText |
@@ -110,9 +157,9 @@ All checks apply to both PDF/UA-1 and PDF/UA-2. `--spec auto`
 XMP metadata; `--spec pdfua1` / `pdfua2` forces a specific set.
 
 A few checks have severity Warning rather than Error where the
-spec leaves room (e.g. MH-16-003 `/ListNumbering` defaults to
-None on unordered lists; MH-27-001 outlines on documents above a
-conventional length threshold). Font checks (MH-09-001, MH-10-001)
+spec leaves room (e.g. UA-16-003 `/ListNumbering` defaults to
+None on unordered lists; UA-27-001 outlines on documents above a
+conventional length threshold). Font checks (UA-09-001, UA-10-001)
 only flag fonts that are actually referenced from a content
 stream, not fonts declared in `/Resources` and never used.
 
@@ -138,6 +185,7 @@ names being kept backwards-compatible.
 
 ```
 cmd/pdfa11y/        CLI (optionparser)
+cmd/inspect/        Debug helper (DocInfo, fonts, struct-tree shape)
 cmd/genfixtures/    Fixture regenerator
 internal/engine/    Check interface, registry, runner, Verdict
 internal/model/     Document/Dict/StructElement/Font/PageReport interfaces
@@ -176,7 +224,7 @@ and are checked in. They are derived from one canonical base PDF.
 the [pdfa.org technique sample PDFs](https://pdfa.org/techniques-for-accessible-pdf/)
 and tabulates pdfa11y's verdict against each file's filename-encoded
 expectation (`_F<n>` means "should fail", anything else means
-"should pass"). The test never fails on a mismatch — it produces a
+"should pass"). The test never fails on a mismatch, it produces a
 `CROSS_VALIDATION.md` report at the repo root for human review.
 
 ```sh
@@ -198,25 +246,6 @@ asks that consumers re-fetch the files directly from the technique
 pages rather than caching local snapshots, as the samples can change
 during the standard's development phase. The pdfa11y repository
 therefore does not vendor them.
-
-## Roadmap
-
-Short-term:
-- Parallel batch processing (`--jobs N`)
-- Suppress / baseline file for CI (today every finding always
-  counts; a baseline lets teams adopt pdfa11y on an existing
-  corpus without flipping CI red on day one)
-- Reading-order: extend the heuristic past upward jumps and column
-  hops -- within-tag MCID ordering (G4_F02), CTM-aware bounding
-  boxes for multi-column layouts that shift the page coordinate
-  system (G4_F03)
-
-Longer-term:
-- Pragmatic glyph-analysis subset: parse the TrueType cmap of
-  embedded fonts to distinguish mis-declared symbolic fonts from real
-  Latin fonts, closing the F03-class divergence with PAC
-- WCAG-only filtering for documents that are not formally PDF/UA but
-  should still satisfy WCAG-equivalent accessibility expectations
 
 ## Ecosystem
 
