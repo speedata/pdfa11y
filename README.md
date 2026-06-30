@@ -12,6 +12,11 @@ JSON, so it can drive both interactive review and batch / CI gates.
 It targets the gap left by [PAC](https://pac.pdf-accessibility.org/en),
 which is the de-facto standard for PDF/UA verification but is GUI-only.
 
+> **Try it in your browser:** [**pdfuacheck.speedata.de**](https://pdfuacheck.speedata.de)
+> runs pdfa11y entirely client-side as a WebAssembly build — drop in a
+> PDF and get the report without installing anything. Your file never
+> leaves your machine.
+
 
 ## Status
 
