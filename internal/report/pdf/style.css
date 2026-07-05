@@ -131,6 +131,13 @@ body {
   padding-left: 8pt;
 }
 
+.title-page .na-note {
+  font-size: 9.5pt;
+  color: #6a6a6a;
+  line-height: 1.4;
+  margin: -18pt 0 0 0;   /* pull up under the stats table's bottom margin */
+}
+
 .title-page .meta {
   font-size: 9pt;
   color: #6a6a6a;

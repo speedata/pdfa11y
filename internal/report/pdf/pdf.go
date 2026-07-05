@@ -277,6 +277,13 @@ func groupByVerdict(results []engine.Result) []Group {
 	}
 	out := make([]Group, 0, len(verdictBuckets))
 	for i, b := range verdictBuckets {
+		// Not-applicable checks are omitted from the report entirely:
+		// a page of "nothing to inspect" cards is pure noise. The full
+		// per-check N/A data still lives in the machine-readable JSON
+		// report for anyone auditing coverage.
+		if b.slug == "na" {
+			continue
+		}
 		rs := buckets[i]
 		if len(rs) == 0 {
 			continue
@@ -337,8 +344,10 @@ const reportTemplate = `{{range $i, $doc := .Documents}}
     {{if $doc.HasGroup "fail"}}<tr><td class="num"><a href="#g-fail">{{$doc.Summary.Errors}}</a></td><td class="label"><a href="#g-fail">error{{if ne $doc.Summary.Errors 1}}s{{end}}</a></td></tr>{{else}}<tr><td class="num">{{$doc.Summary.Errors}}</td><td class="label">error{{if ne $doc.Summary.Errors 1}}s{{end}}</td></tr>{{end}}
     {{if $doc.HasGroup "warn"}}<tr><td class="num"><a href="#g-warn">{{$doc.Summary.Warnings}}</a></td><td class="label"><a href="#g-warn">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</a></td></tr>{{else}}<tr><td class="num">{{$doc.Summary.Warnings}}</td><td class="label">warning{{if ne $doc.Summary.Warnings 1}}s{{end}}</td></tr>{{end}}
     {{if $doc.Summary.Suggestions}}<tr><td class="num"><a href="#g-suggestion">{{$doc.Summary.Suggestions}}</a></td><td class="label"><a href="#g-suggestion">suggestion{{if ne $doc.Summary.Suggestions 1}}s{{end}}</a></td></tr>{{end}}
-    {{if $doc.Summary.NotApplicable}}<tr><td class="num"><a href="#g-na">{{$doc.Summary.NotApplicable}}</a></td><td class="label"><a href="#g-na">not applicable</a></td></tr>{{end}}
+    {{if $doc.Summary.NotApplicable}}<tr><td class="num">{{$doc.Summary.NotApplicable}}</td><td class="label">not applicable</td></tr>{{end}}
   </table>
+
+  {{if $doc.Summary.NotApplicable}}<p class="na-note">Not-applicable checks target features this document doesn&rsquo;t use, so there was nothing to test.</p>{{end}}
 
   <p class="meta">Generated {{$.GeneratedAt}} by pdfa11y{{with $.Version}} v{{.}}{{end}}</p>
 </section>

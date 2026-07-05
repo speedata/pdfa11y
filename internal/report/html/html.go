@@ -212,6 +212,13 @@ func groupByVerdict(results []engine.Result) []Group {
 	}
 	out := make([]Group, 0, len(verdictBuckets))
 	for i, b := range verdictBuckets {
+		// Not-applicable checks are omitted from the report entirely:
+		// listing "nothing to inspect" rows is pure noise. The full
+		// per-check N/A data still lives in the machine-readable JSON
+		// report for anyone auditing coverage.
+		if b.slug == "na" {
+			continue
+		}
 		rs := buckets[i]
 		if len(rs) == 0 {
 			continue
@@ -311,13 +318,25 @@ const reportTemplate = `<!DOCTYPE html>
   .summary-verdict.verdict-pass { background: var(--pass); }
   .summary-verdict.verdict-warn { background: var(--warn); }
   .summary-verdict.verdict-fail { background: var(--fail); }
+  .summary-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+  }
   .summary-stats {
     display: flex;
     flex-wrap: wrap;
     gap: 0 2rem;
     align-items: center;
     padding: .35rem 1.1rem;
-    flex: 1 1 auto;
+  }
+  .summary-na-note {
+    margin: 0;
+    padding: 0 1.1rem .4rem;
+    font-size: .75rem;
+    color: var(--muted);
+    line-height: 1.4;
   }
   .summary-stats .stat { display: flex; flex-direction: column; padding: .2rem 0; }
   .summary-stats .stat-value { font-size: 1.05rem; font-weight: 600; color: var(--text); line-height: 1.2; }
@@ -407,12 +426,15 @@ const reportTemplate = `<!DOCTYPE html>
   <h2>{{.Filename}}</h2>
   <div class="summary-card">
     <div class="summary-verdict verdict-{{.VerdictClass}}">{{.Verdict}}</div>
-    <div class="summary-stats">
-      {{if .HasGroup "pass"}}<a class="stat" href="#g-pass"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></div>{{end}}
-      {{if .HasGroup "fail"}}<a class="stat" href="#g-fail"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></div>{{end}}
-      {{if .HasGroup "warn"}}<a class="stat" href="#g-warn"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></div>{{end}}
-      {{if .Summary.Suggestions}}<a class="stat" href="#g-suggestion"><span class="stat-value">{{.Summary.Suggestions}}</span><span class="stat-label">suggestion{{if ne .Summary.Suggestions 1}}s{{end}}</span></a>{{end}}
-      {{if .Summary.NotApplicable}}<a class="stat" href="#g-na"><span class="stat-value">{{.Summary.NotApplicable}}</span><span class="stat-label">not applicable</span></a>{{end}}
+    <div class="summary-body">
+      <div class="summary-stats">
+        {{if .HasGroup "pass"}}<a class="stat" href="#g-pass"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Passed}}/{{.Summary.Total}}</span><span class="stat-label">checks passed</span></div>{{end}}
+        {{if .HasGroup "fail"}}<a class="stat" href="#g-fail"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Errors}}</span><span class="stat-label">error{{if ne .Summary.Errors 1}}s{{end}}</span></div>{{end}}
+        {{if .HasGroup "warn"}}<a class="stat" href="#g-warn"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></a>{{else}}<div class="stat"><span class="stat-value">{{.Summary.Warnings}}</span><span class="stat-label">warning{{if ne .Summary.Warnings 1}}s{{end}}</span></div>{{end}}
+        {{if .Summary.Suggestions}}<a class="stat" href="#g-suggestion"><span class="stat-value">{{.Summary.Suggestions}}</span><span class="stat-label">suggestion{{if ne .Summary.Suggestions 1}}s{{end}}</span></a>{{end}}
+        {{if .Summary.NotApplicable}}<div class="stat"><span class="stat-value">{{.Summary.NotApplicable}}</span><span class="stat-label">not applicable</span></div>{{end}}
+      </div>
+      {{if .Summary.NotApplicable}}<p class="summary-na-note">Not-applicable checks target features this document doesn&rsquo;t use, so there was nothing to test.</p>{{end}}
     </div>
   </div>
   {{range .Groups}}
