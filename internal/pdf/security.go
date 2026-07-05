@@ -1,7 +1,13 @@
 // Security and optional-content document features.
 package pdf
 
-import "github.com/speedata/pdfa11y/internal/model"
+import (
+	"fmt"
+
+	pdd "github.com/speedata/pdfdisassembler"
+
+	"github.com/speedata/pdfa11y/internal/model"
+)
 
 // OptionalContentGroups walks the catalog's /OCProperties/OCGs array
 // and returns one OptionalContentGroup snapshot per entry. Returns an
@@ -37,6 +43,50 @@ func (d *document) OptionalContentGroups() ([]model.OptionalContentGroup, error)
 		out = append(out, model.OptionalContentGroup{Name: name})
 	}
 	return out, nil
+}
+
+// OptionalContentConfigs collects the /OCProperties /D default config and
+// each entry of the /Configs array, snapshotting the fields the UA-20 config
+// checks need. Returns an empty slice when the document has no /OCProperties.
+func (d *document) OptionalContentConfigs() []model.OptionalContentConfig {
+	cat, err := d.r.Catalog()
+	if err != nil {
+		return nil
+	}
+	props, ok := cat.Dict("OCProperties")
+	if !ok {
+		return nil
+	}
+	var out []model.OptionalContentConfig
+	if dObj, ok := props.Get("D"); ok {
+		if cfg, err := d.r.ResolveDict(dObj); err == nil && cfg != nil {
+			out = append(out, readOCConfig(cfg, "D"))
+		}
+	}
+	if configsObj, ok := props.Get("Configs"); ok {
+		if arr, err := d.r.ResolveArray(configsObj); err == nil {
+			for i, item := range arr {
+				cfg, err := d.r.ResolveDict(item)
+				if err != nil || cfg == nil {
+					continue
+				}
+				out = append(out, readOCConfig(cfg, fmt.Sprintf("Configs[%d]", i)))
+			}
+		}
+	}
+	return out
+}
+
+// readOCConfig snapshots one optional-content configuration dictionary.
+func readOCConfig(cfg *pdd.Dict, source string) model.OptionalContentConfig {
+	c := model.OptionalContentConfig{Source: source}
+	if name, ok := cfg.String("Name"); ok && name != "" {
+		c.HasName = true
+	}
+	if _, ok := cfg.Get("AS"); ok {
+		c.HasAS = true
+	}
+	return c
 }
 
 // Encryption returns the document's encryption-permission state.
@@ -76,4 +126,3 @@ func permissionBit(p int64, bit int) bool {
 	mask := int64(1) << (bit - 1)
 	return p&mask != 0
 }
-

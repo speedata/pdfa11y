@@ -121,6 +121,7 @@ const (
 	CategoryOptionalContent Category = "20 Optional content"
 	CategorySecurity        Category = "26 Security"
 	CategoryNotes           Category = "19 Notes and references"
+	CategoryXObjects        Category = "30 XObjects"
 )
 
 // Location optionally pinpoints where a finding occurs.

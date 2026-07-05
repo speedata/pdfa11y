@@ -27,6 +27,14 @@ func (d *document) Pages() ([]model.PageReport, error) {
 		return nil, err
 	}
 	treeMCIDs := d.collectStructTreeMCIDs()
+	treeMCIDLang := d.collectStructTreeMCIDLang()
+	treeMCIDAlt := d.collectStructTreeMCIDAlt()
+	catalogLang := ""
+	if cat, err := d.r.Catalog(); err == nil && cat != nil {
+		if l, ok := cat.String("Lang"); ok {
+			catalogLang = l
+		}
+	}
 	reports := make([]model.PageReport, 0, len(pages))
 	for _, p := range pages {
 		rep := model.PageReport{
@@ -42,10 +50,20 @@ func (d *document) Pages() ([]model.PageReport, error) {
 		if rep.StructTreeMCIDs == nil {
 			rep.StructTreeMCIDs = map[int]bool{}
 		}
-		if err := d.scanPageContent(p, &rep); err != nil {
+		if err := d.scanPageContent(p, &rep, treeMCIDLang[p.Ref], catalogLang); err != nil {
 			// One broken page should not abort the rest of the report;
 			// record what we managed and move on.
 			rep.UntaggedOps = append(rep.UntaggedOps, model.UntaggedOp{Operator: "<scan-error>"})
+		}
+		// Structure-level exemption for PUA real content: drop MCIDs whose
+		// owning structure element (or an ancestor) carries /Alt or
+		// /ActualText (UA-01-020).
+		if structAlt := treeMCIDAlt[p.Ref]; len(rep.PUAContentMCIDs) > 0 && len(structAlt) > 0 {
+			for mcid := range rep.PUAContentMCIDs {
+				if structAlt[mcid] {
+					delete(rep.PUAContentMCIDs, mcid)
+				}
+			}
 		}
 		reports = append(reports, rep)
 	}
@@ -138,7 +156,7 @@ func (d *document) collectPagesWalk(ref pdd.Reference, inheritedFonts, inherited
 // scanPageContent walks the content stream of a single page and
 // populates the report fields. Errors are returned for malformed
 // streams; the caller decides whether to bail.
-func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
+func (d *document) scanPageContent(p pageInfo, rep *model.PageReport, mcidLang map[int]string, catalogLang string) error {
 	body, err := d.pageContentBytes(p.PageDict)
 	if err != nil {
 		return err
@@ -158,6 +176,18 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 	// them is still tagged but contributes to no MCIDBox.
 	mcidStack := []int{}
 
+	// Parallel stack classifying each open marked-content frame as an
+	// Artifact and/or structure-tagged (MCID) sequence, for detecting the
+	// illegal cross-nesting UA-14-010 flags (ISO 14289-1 §7.1).
+	mcFrames := []mcFrame{}
+
+	// altDepth counts open marked-content frames carrying an /ActualText or
+	// /Alt property; mcidContentAlt records, per MCID, whether such a frame
+	// (its own or an ancestor's) covers its content. Used to exempt PUA real
+	// content from UA-01-020 at the content-stream level.
+	altDepth := 0
+	mcidContentAlt := map[int]bool{}
+
 	// Text-state position tracking. We only track translation components
 	// (textX/textY for the text matrix, lineX/lineY for the line matrix)
 	// and ignore CTM scale/rotation and glyph-advance widths. Pragmatic
@@ -170,7 +200,7 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 	for {
 		op, err := sc.Next()
 		if errors.Is(err, io.EOF) {
-			return nil
+			break
 		}
 		if err != nil {
 			return err
@@ -179,6 +209,9 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 		case "BMC":
 			mcDepth++
 			mcidStack = append(mcidStack, -1)
+			tag := markedContentTag(op)
+			recordNesting(rep, mcFrames, tag == "Artifact", false, tag, op.Offset)
+			mcFrames = append(mcFrames, mcFrame{artifact: tag == "Artifact", mcid: -1})
 		case "BDC":
 			mcDepth++
 			mcid, ok := extractMCID(op, p.Properties)
@@ -188,12 +221,36 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 			} else {
 				mcidStack = append(mcidStack, -1)
 			}
+			tag := markedContentTag(op)
+			recordNesting(rep, mcFrames, tag == "Artifact", ok, tag, op.Offset)
+			spanLang := markedContentLang(op, p.Properties)
+			frameMCID := -1
+			if ok {
+				frameMCID = mcid
+			}
+			if tag == "Span" {
+				recordSpanLang(rep, op, p.Properties, mcFrames, spanLang, frameMCID, mcidLang, catalogLang)
+			}
+			frameHasAlt := bdcPropHas(op, p.Properties, "ActualText") || bdcPropHas(op, p.Properties, "Alt")
+			if ok {
+				mcidContentAlt[mcid] = altDepth > 0 || frameHasAlt
+			}
+			mcFrames = append(mcFrames, mcFrame{artifact: tag == "Artifact", tagged: ok, lang: spanLang, mcid: frameMCID, hasAlt: frameHasAlt})
+			if frameHasAlt {
+				altDepth++
+			}
 		case "EMC":
 			if mcDepth > 0 {
 				mcDepth--
 			}
+			if n := len(mcFrames); n > 0 && mcFrames[n-1].hasAlt && altDepth > 0 {
+				altDepth--
+			}
 			if n := len(mcidStack); n > 0 {
 				mcidStack = mcidStack[:n-1]
+			}
+			if n := len(mcFrames); n > 0 {
+				mcFrames = mcFrames[:n-1]
 			}
 		case "BT":
 			inText = true
@@ -247,6 +304,39 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport) error {
 			recordIfUntagged(rep, op, mcDepth)
 		}
 	}
+
+	// Finalise PUA real-content detection: an MCID whose decoded text carries
+	// a Unicode PUA code point and whose marked-content sequence supplies no
+	// /ActualText or /Alt is a candidate. The owning structure element may
+	// still carry /ActualText or /Alt (resolved later in Pages).
+	for mcid, text := range rep.MCIDText {
+		if !containsPUARune(text) {
+			continue
+		}
+		rep.HadPUARealContent = true
+		if mcidContentAlt[mcid] {
+			continue
+		}
+		if rep.PUAContentMCIDs == nil {
+			rep.PUAContentMCIDs = map[int]bool{}
+		}
+		rep.PUAContentMCIDs[mcid] = true
+	}
+	return nil
+}
+
+// containsPUARune reports whether s contains a Unicode Private Use Area code
+// point (U+E000-U+F8FF, U+F0000-U+FFFFD, U+100000-U+10FFFD).
+func containsPUARune(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 0xE000 && r <= 0xF8FF,
+			r >= 0xF0000 && r <= 0xFFFFD,
+			r >= 0x100000 && r <= 0x10FFFD:
+			return true
+		}
+	}
+	return false
 }
 
 // numberOperand returns the numeric value of an Operand, or 0 if it is
@@ -509,6 +599,168 @@ func extractMCID(op contentstream.Op, properties *pdd.Dict) (int, bool) {
 	return 0, false
 }
 
+// mcFrame classifies one open marked-content sequence for §7.1
+// cross-nesting detection: whether it is an Artifact and/or a
+// structure-tagged (MCID-carrying) sequence.
+type mcFrame struct {
+	artifact bool
+	tagged   bool
+	hasAlt   bool   // this sequence's BDC carries /ActualText or /Alt
+	lang     string // /Lang property on this sequence's BDC, "" if none
+	mcid     int    // MCID of this sequence, or -1
+}
+
+// markedContentTag returns the tag-name operand of a BMC/BDC operator
+// (its first operand), or "" when absent.
+func markedContentTag(op contentstream.Op) string {
+	if len(op.Operands) >= 1 && op.Operands[0].Kind == contentstream.KindName {
+		return op.Operands[0].Name
+	}
+	return ""
+}
+
+// recordNesting appends an MCNestingViolation when opening a marked-content
+// sequence would nest an Artifact and structure-tagged content inside one
+// another (ISO 14289-1 §7.1). frames is the stack of currently-open
+// ancestor sequences; innerArtifact/innerTagged classify the sequence being
+// opened.
+func recordNesting(rep *model.PageReport, frames []mcFrame, innerArtifact, innerTagged bool, tag string, offset int64) {
+	ancestorArtifact, ancestorTagged := false, false
+	for _, f := range frames {
+		if f.artifact {
+			ancestorArtifact = true
+		}
+		if f.tagged {
+			ancestorTagged = true
+		}
+	}
+	if innerArtifact && ancestorTagged {
+		rep.MCNestingViolations = append(rep.MCNestingViolations, model.MCNestingViolation{
+			ArtifactInsideTagged: true,
+			InnerTag:             tag,
+			Offset:               offset,
+		})
+	}
+	if innerTagged && ancestorArtifact {
+		rep.MCNestingViolations = append(rep.MCNestingViolations, model.MCNestingViolation{
+			ArtifactInsideTagged: false,
+			InnerTag:             tag,
+			Offset:               offset,
+		})
+	}
+}
+
+// bdcPropHas reports whether a BDC operator's property dictionary carries the
+// given key, handling both an inline dictionary operand and a /Properties name
+// reference resolved against the page's /Resources/Properties.
+func bdcPropHas(op contentstream.Op, properties *pdd.Dict, key string) bool {
+	if len(op.Operands) < 2 {
+		return false
+	}
+	switch op.Operands[1].Kind {
+	case contentstream.KindDict:
+		_, ok := op.Operands[1].Dict[key]
+		return ok
+	case contentstream.KindName:
+		if properties == nil {
+			return false
+		}
+		if entry, ok := properties.Dict(op.Operands[1].Name); ok {
+			return entry.Has(key)
+		}
+	}
+	return false
+}
+
+// bdcPropString returns a string-valued key from a BDC operator's property
+// dictionary (inline or /Properties name reference), or "".
+func bdcPropString(op contentstream.Op, properties *pdd.Dict, key string) string {
+	if len(op.Operands) < 2 {
+		return ""
+	}
+	switch op.Operands[1].Kind {
+	case contentstream.KindDict:
+		if v, ok := op.Operands[1].Dict[key]; ok && v.Kind == contentstream.KindString {
+			return string(v.Bytes)
+		}
+	case contentstream.KindName:
+		if properties == nil {
+			return ""
+		}
+		if entry, ok := properties.Dict(op.Operands[1].Name); ok {
+			if s, ok := entry.String(key); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// markedContentLang returns the /Lang string property of a BDC operator's
+// property dictionary (inline or resolved through /Properties), or "".
+func markedContentLang(op contentstream.Op, properties *pdd.Dict) string {
+	return bdcPropString(op, properties, "Lang")
+}
+
+// recordSpanLang appends a SpanLangViolation for each /ActualText, /Alt or /E
+// property on a Span BDC whose natural language cannot be determined -- no
+// /Lang on the Span, no /Lang on any enclosing marked-content sequence, no
+// /Lang on the owning structure element (via the nearest enclosing MCID), and
+// no catalog /Lang (ISO 14289-1 §7.2, veraPDF UA1:7.2-30/-31/-32).
+func recordSpanLang(rep *model.PageReport, op contentstream.Op, properties *pdd.Dict, frames []mcFrame, spanLang string, spanMCID int, mcidLang map[int]string, catalogLang string) {
+	hasAT := bdcPropHas(op, properties, "ActualText")
+	hasAlt := bdcPropHas(op, properties, "Alt")
+	hasE := bdcPropHas(op, properties, "E")
+	if !hasAT && !hasAlt && !hasE {
+		return
+	}
+	if langDeterminable(frames, spanLang, spanMCID, mcidLang, catalogLang) {
+		return
+	}
+	for _, attr := range []struct {
+		present bool
+		name    string
+	}{{hasAT, "ActualText"}, {hasAlt, "Alt"}, {hasE, "E"}} {
+		if attr.present {
+			rep.SpanLangViolations = append(rep.SpanLangViolations, model.SpanLangViolation{
+				Attribute: attr.name,
+				Offset:    op.Offset,
+			})
+		}
+	}
+}
+
+// langDeterminable reports whether a Span's natural language can be
+// determined from its own /Lang, an enclosing sequence's /Lang, the owning
+// structure element's inherited /Lang (nearest enclosing MCID), or the
+// catalog /Lang.
+func langDeterminable(frames []mcFrame, spanLang string, spanMCID int, mcidLang map[int]string, catalogLang string) bool {
+	if spanLang != "" || catalogLang != "" {
+		return true
+	}
+	for _, f := range frames {
+		if f.lang != "" {
+			return true
+		}
+	}
+	// Nearest enclosing MCID: the Span's own, else the innermost ancestor's.
+	mcid := spanMCID
+	if mcid < 0 {
+		for i := len(frames) - 1; i >= 0; i-- {
+			if frames[i].mcid >= 0 {
+				mcid = frames[i].mcid
+				break
+			}
+		}
+	}
+	if mcid >= 0 {
+		if l, ok := mcidLang[mcid]; ok && l != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // resolveResourceFont resolves a font resource key (e.g. "F1") through
 // /Resources/Font to a model.Font snapshot matching what Fonts()
 // returns. The lookup is best-effort: missing keys return ok=false.
@@ -538,6 +790,7 @@ func (d *document) fontFromDict(fd *pdd.Dict) model.Font {
 	hasToU := fd.Has("ToUnicode")
 	isSym := d.fontIsSymbolic(fd, subtype)
 	mappings, codeBytes := d.parseToUnicodeFromFont(fd)
+	cidSubtype, cidToGID := d.cidDescendantInfo(fd, subtype)
 	return model.Font{
 		Subtype:                subtype,
 		BaseFont:               string(baseFont),
@@ -549,6 +802,8 @@ func (d *document) fontFromDict(fd *pdd.Dict) model.Font {
 		HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
 		ToUnicodeMappings:      mappings,
 		ToUnicodeCodeBytes:     codeBytes,
+		CIDSubtype:             cidSubtype,
+		CIDToGIDMap:            cidToGID,
 	}
 }
 
@@ -615,6 +870,196 @@ func (d *document) collectStructTreeMCIDs() map[pdd.Reference]map[int]bool {
 	}
 	d.walkStructForMCIDs(stree, pdd.Reference{}, out)
 	return out
+}
+
+// collectStructTreeMCIDLang mirrors collectStructTreeMCIDs but records, per
+// page reference and MCID, the effective /Lang of the owning structure element
+// -- its own /Lang or the nearest ancestor's, inherited down the tree. Used by
+// UA-11-008 to decide whether a Span marked-content sequence inherits a
+// determinable language from the structure element that contains it. Empty
+// string when no ancestor declares /Lang.
+func (d *document) collectStructTreeMCIDLang() map[pdd.Reference]map[int]string {
+	out := map[pdd.Reference]map[int]string{}
+	cat, err := d.r.Catalog()
+	if err != nil || cat == nil {
+		return out
+	}
+	stree, ok := cat.Dict("StructTreeRoot")
+	if !ok {
+		return out
+	}
+	d.walkStructForMCIDLang(stree, pdd.Reference{}, "", out)
+	return out
+}
+
+func (d *document) walkStructForMCIDLang(elem *pdd.Dict, inheritedPage pdd.Reference, inheritedLang string, out map[pdd.Reference]map[int]string) {
+	if elem == nil {
+		return
+	}
+	page := inheritedPage
+	if pg, ok := elem.Get("Pg"); ok {
+		if ref, ok := pg.(pdd.Reference); ok {
+			page = ref
+		}
+	}
+	lang := inheritedLang
+	if l, ok := elem.String("Lang"); ok && l != "" {
+		lang = l
+	}
+	kObj, ok := elem.Get("K")
+	if !ok {
+		return
+	}
+	resolved, err := d.r.Resolve(kObj)
+	if err != nil {
+		return
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+	for _, item := range items {
+		if n, ok := asInt(item); ok {
+			recordMCIDLang(out, page, int(n), lang)
+			continue
+		}
+		child, err := d.r.ResolveDict(item)
+		if err != nil || child == nil {
+			continue
+		}
+		tName, _ := child.Name("Type")
+		switch string(tName) {
+		case "MCR":
+			mcid, ok := child.Int("MCID")
+			if !ok {
+				continue
+			}
+			ref := page
+			if pg, ok := child.Get("Pg"); ok {
+				if r, ok := pg.(pdd.Reference); ok {
+					ref = r
+				}
+			}
+			recordMCIDLang(out, ref, int(mcid), lang)
+		case "OBJR":
+			continue
+		default:
+			d.walkStructForMCIDLang(child, page, lang, out)
+		}
+	}
+}
+
+func recordMCIDLang(out map[pdd.Reference]map[int]string, page pdd.Reference, mcid int, lang string) {
+	if page == (pdd.Reference{}) || lang == "" {
+		return
+	}
+	m := out[page]
+	if m == nil {
+		m = map[int]string{}
+		out[page] = m
+	}
+	m[mcid] = lang
+}
+
+// collectStructTreeMCIDAlt records, per page reference and MCID, whether the
+// owning structure element or any ancestor carries a non-empty /Alt or
+// /ActualText (both inherit down the tree: /ActualText replaces an element's
+// content text, /Alt describes its whole subtree). Used by UA-01-020 to exempt
+// PUA real content that a structure element already describes.
+func (d *document) collectStructTreeMCIDAlt() map[pdd.Reference]map[int]bool {
+	out := map[pdd.Reference]map[int]bool{}
+	cat, err := d.r.Catalog()
+	if err != nil || cat == nil {
+		return out
+	}
+	stree, ok := cat.Dict("StructTreeRoot")
+	if !ok {
+		return out
+	}
+	d.walkStructForMCIDAlt(stree, pdd.Reference{}, false, out)
+	return out
+}
+
+func (d *document) walkStructForMCIDAlt(elem *pdd.Dict, inheritedPage pdd.Reference, inheritedAlt bool, out map[pdd.Reference]map[int]bool) {
+	if elem == nil {
+		return
+	}
+	page := inheritedPage
+	if pg, ok := elem.Get("Pg"); ok {
+		if ref, ok := pg.(pdd.Reference); ok {
+			page = ref
+		}
+	}
+	hasAlt := inheritedAlt
+	if a, ok := elem.String("Alt"); ok && a != "" {
+		hasAlt = true
+	}
+	if a, ok := elem.String("ActualText"); ok && a != "" {
+		hasAlt = true
+	}
+	kObj, ok := elem.Get("K")
+	if !ok {
+		return
+	}
+	resolved, err := d.r.Resolve(kObj)
+	if err != nil {
+		return
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+	for _, item := range items {
+		if n, ok := asInt(item); ok {
+			if hasAlt {
+				recordMCIDAlt(out, page, int(n))
+			}
+			continue
+		}
+		child, err := d.r.ResolveDict(item)
+		if err != nil || child == nil {
+			continue
+		}
+		tName, _ := child.Name("Type")
+		switch string(tName) {
+		case "MCR":
+			mcid, ok := child.Int("MCID")
+			if !ok {
+				continue
+			}
+			ref := page
+			if pg, ok := child.Get("Pg"); ok {
+				if r, ok := pg.(pdd.Reference); ok {
+					ref = r
+				}
+			}
+			if hasAlt {
+				recordMCIDAlt(out, ref, int(mcid))
+			}
+		case "OBJR":
+			continue
+		default:
+			d.walkStructForMCIDAlt(child, page, hasAlt, out)
+		}
+	}
+}
+
+func recordMCIDAlt(out map[pdd.Reference]map[int]bool, page pdd.Reference, mcid int) {
+	if page == (pdd.Reference{}) {
+		return
+	}
+	m := out[page]
+	if m == nil {
+		m = map[int]bool{}
+		out[page] = m
+	}
+	m[mcid] = true
 }
 
 func (d *document) walkStructForMCIDs(elem *pdd.Dict, inheritedPage pdd.Reference, out map[pdd.Reference]map[int]bool) {

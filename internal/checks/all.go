@@ -19,4 +19,5 @@ import (
 	_ "github.com/speedata/pdfa11y/internal/checks/tables"
 	_ "github.com/speedata/pdfa11y/internal/checks/taborder"
 	_ "github.com/speedata/pdfa11y/internal/checks/viewerprefs"
+	_ "github.com/speedata/pdfa11y/internal/checks/xobjects"
 )

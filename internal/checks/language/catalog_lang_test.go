@@ -17,6 +17,7 @@ func TestCatalogLang(t *testing.T) {
 	}{
 		{"missing /Lang yields a warning", "testdata/no-lang.pdf", 1, engine.SeverityWarning},
 		{"present /Lang yields no findings", "testdata/with-lang.pdf", 0, 0},
+		{"empty /Lang under PDF/UA-2 is an error", "testdata/catalog-lang-empty-ua2.pdf", 1, engine.SeverityError},
 	}
 
 	check := language.CatalogLang{}

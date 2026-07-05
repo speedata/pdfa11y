@@ -36,6 +36,81 @@ func (d *document) AssociatedFiles() ([]model.AssociatedFile, error) {
 	return out, nil
 }
 
+// EmbeddedFileSpecs walks the catalog's /Names /EmbeddedFiles name tree and
+// returns one snapshot per file specification dictionary found. Returns an
+// empty slice when the document has no such tree.
+func (d *document) EmbeddedFileSpecs() []model.EmbeddedFileSpec {
+	cat, err := d.r.Catalog()
+	if err != nil {
+		return nil
+	}
+	names, ok := cat.Dict("Names")
+	if !ok {
+		return nil
+	}
+	efObj, ok := names.Get("EmbeddedFiles")
+	if !ok {
+		return nil
+	}
+	var out []model.EmbeddedFileSpec
+	d.walkNameTree(efObj, &out, 0)
+	return out
+}
+
+// walkNameTree recurses through a PDF name tree (ISO 32000-1 §7.9.6) rooted at
+// nodeObj, appending one EmbeddedFileSpec per value entry. A node carries
+// either a /Names leaf array ([key1 val1 key2 val2 ...]) or a /Kids array of
+// child nodes; both are handled. depth guards against pathological cycles.
+func (d *document) walkNameTree(nodeObj pdd.Object, out *[]model.EmbeddedFileSpec, depth int) {
+	if depth > 50 {
+		return
+	}
+	node, err := d.r.ResolveDict(nodeObj)
+	if err != nil || node == nil {
+		return
+	}
+	if namesObj, ok := node.Get("Names"); ok {
+		if arr, err := d.r.ResolveArray(namesObj); err == nil {
+			// Entries alternate key, value; the values are filespec dicts.
+			for i := 1; i < len(arr); i += 2 {
+				fs, err := d.r.ResolveDict(arr[i])
+				if err != nil || fs == nil {
+					continue
+				}
+				*out = append(*out, d.readEmbeddedFileSpec(fs))
+			}
+		}
+	}
+	if kidsObj, ok := node.Get("Kids"); ok {
+		if arr, err := d.r.ResolveArray(kidsObj); err == nil {
+			for _, kid := range arr {
+				d.walkNameTree(kid, out, depth+1)
+			}
+		}
+	}
+}
+
+// readEmbeddedFileSpec snapshots the filespec fields UA-12-002 needs.
+func (d *document) readEmbeddedFileSpec(fs *pdd.Dict) model.EmbeddedFileSpec {
+	var e model.EmbeddedFileSpec
+	f, fok := fs.String("F")
+	uf, ufok := fs.String("UF")
+	e.HasNonEmptyF = fok && f != ""
+	e.HasNonEmptyUF = ufok && uf != ""
+	if e.HasNonEmptyUF {
+		e.Filename = uf
+	} else if e.HasNonEmptyF {
+		e.Filename = f
+	}
+	if _, ok := fs.Get("Desc"); ok {
+		e.HasDesc = true
+	}
+	if _, ok := fs.Get("EF"); ok {
+		e.HasEF = true
+	}
+	return e
+}
+
 // collectAF resolves /AF on container (catalog dict or page dict) and
 // appends one AssociatedFile per entry to out. Silently ignores
 // entries that cannot be resolved as dicts; a malformed /AF array

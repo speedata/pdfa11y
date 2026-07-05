@@ -14,19 +14,34 @@ import (
 
 	_ "github.com/speedata/pdfa11y/internal/checks" // register every check
 	"github.com/speedata/pdfa11y/internal/engine"
+	"github.com/speedata/pdfa11y/internal/model"
 	"github.com/speedata/pdfa11y/internal/pdf"
+	"github.com/speedata/pdfa11y/internal/pdfua"
 )
+
+// autoSpec mirrors the CLI's `--spec auto` gating: the spec set that
+// actually runs is derived per document from the XMP pdfuaid:part
+// value, and a file that declares neither part runs both check sets.
+// The refcorpus comparison must gate the same way the CLI does, or it
+// reports failures for checks the user's `pdfa11y FILE.pdf` would
+// never even execute (e.g. a PDF/UA-2-only check on a UA-1 file).
+func autoSpec(doc model.Document) engine.Spec {
+	part, found, _ := pdfua.DetectPart(doc)
+	if !found {
+		return engine.SpecBoth
+	}
+	switch part {
+	case 1:
+		return engine.SpecPDFUA1
+	case 2:
+		return engine.SpecPDFUA2
+	}
+	return engine.SpecBoth
+}
 
 // (no default corpus path -- PDFA11Y_REFCORPUS is the sole entry
 // point. Tests skip silently when it is unset, so a fresh checkout
 // runs `go test ./...` cleanly.)
-
-// noiseCheckID is the MH check whose failure is systemic to the
-// pdfa.org reference set: every file in that corpus declares XMP but
-// omits the pdfuaid:part identifier. Counting that failure in the
-// verdict would mask every per-file failing condition the corpus is
-// actually testing. We exclude it for the comparison.
-const noiseCheckID = "UA-06-003"
 
 // failureFilenamePattern picks out failure-demonstration PDFs from the
 // pdfa.org naming convention: `UA1_Tpdf-<group>_F<NN>.pdf` is a
@@ -121,7 +136,7 @@ func evaluate(absPath, corpusRoot string) corpusResult {
 		r.LoadErr = err.Error()
 		return r
 	}
-	results := engine.Run(doc, engine.All())
+	results := engine.Run(doc, engine.ForSpec(autoSpec(doc)))
 	allowed := allowedSet(r.RelPath)
 	var failing, skipped, warning []string
 	for _, res := range results {
@@ -130,9 +145,6 @@ func evaluate(absPath, corpusRoot string) corpusResult {
 			continue
 		}
 		id := res.Check.ID()
-		if id == noiseCheckID {
-			continue
-		}
 		if allowed[id] {
 			skipped = append(skipped, id)
 			continue
@@ -246,9 +258,16 @@ func buildReport(corpus string, rs []corpusResult) string {
 	fmt.Fprintf(&b, "to re-fetch the files from <https://pdfa.org/techniques-for-accessible-pdf/>\n")
 	fmt.Fprintf(&b, "rather than caching them, since the samples may change during the\n")
 	fmt.Fprintf(&b, "standard's development phase.\n\n")
-	fmt.Fprintf(&b, "`%s` (PDF/UA identifier missing in XMP) is excluded from the\n", noiseCheckID)
-	fmt.Fprintf(&b, "verdict because the pdfa.org reference set systematically omits it\n")
-	fmt.Fprintf(&b, "across all files; counting it would mask the per-failure assessment.\n\n")
+	fmt.Fprintf(&b, "The pdfa.org corpus marks its failure-demonstration files by\n")
+	fmt.Fprintf(&b, "removing the PDF/UA identifier (`pdfuaid:part`) from the XMP\n")
+	fmt.Fprintf(&b, "metadata: every passing example declares it, every failing example\n")
+	fmt.Fprintf(&b, "omits it. `UA-06-003` therefore fires on exactly the failing files\n")
+	fmt.Fprintf(&b, "and is counted in the verdict. A consequence worth stating plainly:\n")
+	fmt.Fprintf(&b, "the corpus separates PASS from FAIL primarily on this one\n")
+	fmt.Fprintf(&b, "machine-checkable signal, so a high match rate does **not** mean the\n")
+	fmt.Fprintf(&b, "validator detects the demonstrated semantic defect (reading order,\n")
+	fmt.Fprintf(&b, "heading semantics). veraPDF behaves the same way -- it too fails\n")
+	fmt.Fprintf(&b, "these files on the missing identifier, not on the content defect.\n\n")
 
 	fmt.Fprintf(&b, "pdfa.org's `_NN` PASS examples demonstrate one technique correctly\n")
 	fmt.Fprintf(&b, "but are not full-conformance fixtures -- they may carry unrelated\n")

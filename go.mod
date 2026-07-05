@@ -7,7 +7,8 @@ require (
 	github.com/boxesandglue/boxesandglue v0.2.33
 	github.com/boxesandglue/csshtml v0.0.12
 	github.com/speedata/optionparser v1.2.1
-	github.com/speedata/pdfdisassembler v0.0.2
+	github.com/speedata/pdfdisassembler v0.0.7
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

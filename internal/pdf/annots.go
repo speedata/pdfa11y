@@ -45,23 +45,143 @@ func (d *document) Annotations() ([]model.Annotation, error) {
 func (d *document) annotationFromDict(ad *pdd.Dict, page int, pageBox [4]float64) model.Annotation {
 	subtypeName, _ := ad.Name("Subtype")
 	contents, _ := ad.String("Contents")
+	nameVal, _ := ad.Name("Name")
 	tooltip := d.inheritedTooltip(ad)
+	fieldTooltip := d.fieldTooltip(ad)
+	lang := d.inheritedLang(ad)
 	structParent := -1
 	if sp, ok := ad.Int("StructParent"); ok {
 		structParent = int(sp)
 	}
 	flags, _ := ad.Int("F")
-	rect := readRect(ad)
+	rect, rectOK := readBoxArray(ad, "Rect")
+	hasFS, fsHasAFRel := d.fileSpecAFRelationship(ad)
+	_, hasAA := ad.Get("AA")
+	isTextField, fieldValue, richTextValue := d.textFieldValues(ad)
 	return model.Annotation{
 		Page:         page,
 		Subtype:      string(subtypeName),
 		Contents:     contents,
+		Name:         string(nameVal),
 		Tooltip:      tooltip,
+		FieldTooltip: fieldTooltip,
+		Lang:         lang,
+		StructLang:   d.structLangForParent(structParent),
+		StructType:   d.structTypeForParent(structParent),
+		StructAlt:    d.structAltForParent(structParent),
 		StructParent: structParent,
-		Hidden:       flags&2 != 0,  // bit 2: Hidden
-		NoView:       flags&32 != 0, // bit 5 (PDF flags are 1-indexed): NoView
+		Hidden:       flags&2 != 0,   // bit 2: Hidden
+		NoView:       flags&32 != 0,  // bit 5 (PDF flags are 1-indexed): NoView
+		Invisible:    flags&1 != 0,   // bit 1: Invisible
+		ToggleNoView: flags&256 != 0, // bit 9: ToggleNoView
 		OffPage:      rectIsOffPage(rect, pageBox),
+		ZeroSize:     rectOK && rect[2]-rect[0] == 0 && rect[3]-rect[1] == 0,
+
+		HasFileSpec:               hasFS,
+		FileSpecHasAFRelationship: fsHasAFRel,
+
+		HasAA:         hasAA,
+		IsFieldWidget: string(subtypeName) == "Widget" && d.hasFieldAncestry(ad),
+
+		IsTextField:   isTextField,
+		FieldValue:    fieldValue,
+		RichTextValue: richTextValue,
+		RichContents:  d.richTextEntry(ad, "RC"),
+		StructHasLbl:  d.structHasLblForParent(structParent),
+		StructOwnLang: d.structOwnLangForParent(structParent),
 	}
+}
+
+// textFieldValues resolves the owning form field (the nearest dict carrying
+// /FT, up the /Parent chain) and reports whether it is a text field (/FT /Tx)
+// together with its /V (plain value) and /RV (rich-text value). /RV may be a
+// text string or a text stream; a stream is decoded. Empty strings when the
+// entries are absent. Eight levels bound the walk against cycles.
+func (d *document) textFieldValues(annot *pdd.Dict) (isTextField bool, value, richText string) {
+	cur := annot
+	for range 8 {
+		if ft, ok := cur.Name("FT"); ok {
+			isTextField = ft == "Tx"
+			value, _ = cur.String("V")
+			richText = d.richTextValue(cur)
+			return isTextField, value, richText
+		}
+		parentObj, ok := cur.Get("Parent")
+		if !ok {
+			return false, "", ""
+		}
+		parent, err := d.r.ResolveDict(parentObj)
+		if err != nil || parent == nil {
+			return false, "", ""
+		}
+		cur = parent
+	}
+	return false, "", ""
+}
+
+// richTextValue reads a field's /RV entry, which ISO 32000-1 §12.7.3.4 allows
+// to be either a text string or a text stream. A stream is decoded to its raw
+// bytes (the XHTML fragment); a string is returned as-is. Empty when absent.
+func (d *document) richTextValue(field *pdd.Dict) string {
+	return d.richTextEntry(field, "RV")
+}
+
+// richTextEntry reads a rich-text entry (/RV or /RC) that may be either a text
+// string or a text stream (ISO 32000-1 §12.7.3.4 / §12.5.6.2). A stream is
+// decoded to its raw XHTML bytes; a string is returned as-is. Empty when
+// absent.
+func (d *document) richTextEntry(dict *pdd.Dict, key string) string {
+	if s, ok := dict.String(key); ok {
+		return s
+	}
+	obj, ok := dict.Get(key)
+	if !ok {
+		return ""
+	}
+	if body, err := d.r.DecodeStream(obj); err == nil {
+		return string(body)
+	}
+	return ""
+}
+
+// hasFieldAncestry reports whether the annotation carries /FT itself or
+// inherits it from a /Parent up the chain -- i.e. it participates in the
+// AcroForm field tree. Eight levels bound the walk against cycles.
+func (d *document) hasFieldAncestry(annot *pdd.Dict) bool {
+	cur := annot
+	for range 8 {
+		if _, ok := cur.Get("FT"); ok {
+			return true
+		}
+		parentObj, ok := cur.Get("Parent")
+		if !ok {
+			return false
+		}
+		parent, err := d.r.ResolveDict(parentObj)
+		if err != nil || parent == nil {
+			return false
+		}
+		cur = parent
+	}
+	return false
+}
+
+// fileSpecAFRelationship resolves an annotation's /FS filespec (if any) and
+// reports whether it is present and whether it carries an /AFRelationship
+// entry. Used by UA-28-024 (ISO 14289-2 §8.9.2.4.10).
+func (d *document) fileSpecAFRelationship(ad *pdd.Dict) (hasFS, hasAFRel bool) {
+	fsObj, ok := ad.Get("FS")
+	if !ok {
+		return false, false
+	}
+	fs, err := d.r.ResolveDict(fsObj)
+	if err != nil || fs == nil {
+		return false, false
+	}
+	if _, ok := fs.Get("AFRelationship"); ok {
+		return true, true
+	}
+	return true, false
 }
 
 // pageBox returns the page's visible box: CropBox if present, else
@@ -103,14 +223,6 @@ func readBoxArray(pageDict *pdd.Dict, key string) ([4]float64, bool) {
 		out[1], out[3] = out[3], out[1]
 	}
 	return out, true
-}
-
-// readRect resolves an annotation's /Rect to a normalised
-// [llx, lly, urx, ury]. Returns a zero rect on parse failure; the
-// caller treats a zero rect as "no information" (OffPage stays false).
-func readRect(annot *pdd.Dict) [4]float64 {
-	r, _ := readBoxArray(annot, "Rect")
-	return r
 }
 
 // numberOf accepts pdd.Integer or pdd.Real and returns the value as
@@ -166,6 +278,64 @@ func (d *document) inheritedTooltip(annot *pdd.Dict) string {
 		}
 		if tu, ok := parent.String("TU"); ok && tu != "" {
 			return tu
+		}
+		cur = parent
+	}
+	return ""
+}
+
+// fieldTooltip returns the /TU of the form field that owns this annotation.
+// /TU is a field-level attribute (ISO 32000-1 Table 220): for a widget merged
+// with its field (own /FT) it is read from the widget dict; for a widget that
+// is a kid of a separate field dictionary it is read from that field (the
+// nearest ancestor carrying /FT). A /TU sitting on a kid widget that is not
+// itself a field is NOT a field description and is ignored -- this matches
+// veraPDF's PDWidgetAnnot.TU semantics for UA1:7.18.1-3, where a radio field
+// whose kid widgets carry per-widget /TU but whose field lacks /TU still fails.
+// Eight levels bounds the walk against pathological cycles. Empty when no field
+// is found or the field has no /TU.
+func (d *document) fieldTooltip(annot *pdd.Dict) string {
+	cur := annot
+	for range 8 {
+		if _, ok := cur.Get("FT"); ok {
+			tu, _ := cur.String("TU")
+			return tu
+		}
+		parentObj, ok := cur.Get("Parent")
+		if !ok {
+			return ""
+		}
+		parent, err := d.r.ResolveDict(parentObj)
+		if err != nil || parent == nil {
+			return ""
+		}
+		cur = parent
+	}
+	return ""
+}
+
+// inheritedLang resolves /Lang starting from the annotation itself and
+// walking up the /Parent chain, mirroring inheritedTooltip: a widget's
+// language may be declared on the owning form field rather than on the
+// per-widget annotation. Returns "" when no /Lang is found within the
+// bounded walk. This is the annotation's OWN language; the language it
+// inherits from the structure tree is resolved separately (StructLang).
+func (d *document) inheritedLang(annot *pdd.Dict) string {
+	if l, ok := annot.String("Lang"); ok && l != "" {
+		return l
+	}
+	cur := annot
+	for range 8 {
+		parentObj, ok := cur.Get("Parent")
+		if !ok {
+			return ""
+		}
+		parent, err := d.r.ResolveDict(parentObj)
+		if err != nil || parent == nil {
+			return ""
+		}
+		if l, ok := parent.String("Lang"); ok && l != "" {
+			return l
 		}
 		cur = parent
 	}

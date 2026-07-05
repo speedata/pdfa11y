@@ -1,0 +1,12 @@
+# Pinned veraPDF-validation-profiles version
+#
+# The coverage manifest (coverage.yaml) is merged against this revision of the
+# veraPDF validation profiles. Bump deliberately: check out the new revision,
+# run `verasync -update`, triage the drift (`verasync -check`), then update the
+# SHA below. See VERAPDF_SYNC_PLAN.md, phase 5.
+#
+# Repository: https://github.com/veraPDF/veraPDF-validation-profiles
+
+commit ab0fbe6383431a2ae01f9e21460da628e2b06292
+tag    v1.28.1-72-gab0fbe6
+date   2026-07-01

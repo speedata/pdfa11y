@@ -19,6 +19,7 @@ reflect the current `go.mod`; update this file when dependencies change.
 | golang.org/x/image | v0.39.0 | BSD-3-Clause |
 | golang.org/x/text | v0.36.0 | BSD-3-Clause |
 | gopkg.in/yaml.v2 | v2.4.0 | Apache-2.0 |
+| gopkg.in/yaml.v3 | v3.0.1 | Apache-2.0, MIT |
 
 The full license texts ship with each module in the Go module cache and
 are reproduced in upstream repositories. The Apache-2.0 NOTICE that
@@ -42,3 +43,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+## veraPDF validation profiles (CC BY 4.0)
+
+The veraPDF coverage manifest (`internal/verasync/coverage.yaml`) reproduces
+rule descriptions, ISO clause references, and test identifiers from the
+**veraPDF validation profiles**, used here as a coverage map and test oracle
+(see `VERAPDF_SYNC_PLAN.md`). The profiles are not linked into the pdfa11y
+binary; only their textual rule metadata is embedded in the manifest.
+
+- Source: <https://github.com/veraPDF/veraPDF-validation-profiles>
+- Copyright: © veraPDF Consortium
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+  <https://creativecommons.org/licenses/by/4.0/>
+- Pinned revision: see `internal/verasync/PINNED_VERSION`
+
+The requirement wording ultimately derives from ISO 14289-1:2014 and
+ISO 14289-2:2024; pdfa11y treats the ISO clause as the primary source and the
+veraPDF rule ID as a cross-reference.

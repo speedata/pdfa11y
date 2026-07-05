@@ -20,9 +20,8 @@ import (
 //     non-empty /Lang in the Catalog is mandatory and per-element /Lang
 //     only marks language changes. Severity Error.
 //
-// Known limitation: §8.4.4 also requires the value to be non-empty; we
-// only test for presence today (the model exposes no string accessor
-// for the /Lang value).
+// A present-but-empty /Lang () declares no language and is treated the
+// same as a missing entry (veraPDF UA2:8.4.4-1 containsLang).
 type CatalogLang struct{}
 
 func (CatalogLang) ID() string    { return "UA-11-001" }
@@ -44,15 +43,23 @@ func (c CatalogLang) Run(doc model.Document) []engine.Finding {
 			Message:  "cannot read document catalog: " + err.Error(),
 		}}
 	}
-	if _, found := catalog.Find("Lang"); !found {
-		// Severity is spec-dependent: a missing Catalog /Lang is a hard
-		// violation under PDF/UA-2 (§8.4.4) but only a Warning under
+	// §8.4.4 requires the Catalog /Lang to be present AND non-empty; an
+	// empty /Lang () declares no language, so it is treated as missing.
+	lang, _ := catalog.String("Lang")
+	_, found := catalog.Find("Lang")
+	if !found || lang == "" {
+		// Severity is spec-dependent: a missing/empty Catalog /Lang is a
+		// hard violation under PDF/UA-2 (§8.4.4) but only a Warning under
 		// PDF/UA-1 (§7.2), where per-element /Lang can compensate.
+		state := "no /Lang at the Catalog"
+		if found {
+			state = "empty /Lang at the Catalog"
+		}
 		severity := engine.SeverityWarning
-		msg := "no /Lang at the Catalog — natural language may still be declared per structure element"
+		msg := state + " — natural language may still be declared per structure element"
 		if part, ok, _ := pdfua.DetectPart(doc); ok && part == 2 {
 			severity = engine.SeverityError
-			msg = "no /Lang at the Catalog — PDF/UA-2 §8.4.4 requires a non-empty Catalog /Lang"
+			msg = state + " — PDF/UA-2 §8.4.4 requires a non-empty Catalog /Lang"
 		}
 		return []engine.Finding{{
 			CheckID:  c.ID(),

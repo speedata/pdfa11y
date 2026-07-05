@@ -19,7 +19,31 @@ var (
 	partAttr = regexp.MustCompile(`\bpdfuaid:part\s*=\s*["']\s*([12])\s*["']`)
 	revElem  = regexp.MustCompile(`<\s*pdfuaid:rev\s*>\s*(\d{4})\s*<\s*/\s*pdfuaid:rev\s*>`)
 	revAttr  = regexp.MustCompile(`\bpdfuaid:rev\s*=\s*["']\s*(\d{4})\s*["']`)
+	xDefault = regexp.MustCompile(`xml:lang\s*=\s*["']\s*x-default\s*["']`)
 )
+
+// HasXDefaultLangAlt reports whether the document's XMP metadata contains a
+// language-alternative entry tagged xml:lang="x-default" (an rdf:Alt fallback
+// such as the one dc:title and dc:description carry). ISO 14289-1 §7.2 (veraPDF
+// UA1:7.2-33) requires the natural language of such metadata to be
+// determinable; since x-default is not itself a language, that language must
+// come from the catalog /Lang. Returns (false, nil) when no metadata stream is
+// present. Same XMP-prefix limitation as DetectPart.
+func HasXDefaultLangAlt(doc model.Document) (bool, error) {
+	catalog, err := doc.Catalog()
+	if err != nil {
+		return false, err
+	}
+	mdObj, present := catalog.Find("Metadata")
+	if !present {
+		return false, nil
+	}
+	content, err := doc.DecodeStream(mdObj)
+	if err != nil {
+		return false, err
+	}
+	return xDefault.Match(content), nil
+}
 
 // DetectPart reads the document's XMP metadata stream (if any) and
 // returns the declared pdfuaid:part value. Returned values are 1 or 2.

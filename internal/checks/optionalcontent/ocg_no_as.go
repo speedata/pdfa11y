@@ -1,13 +1,15 @@
 package optionalcontent
 
 import (
+	"fmt"
+
 	"github.com/speedata/pdfa11y/internal/engine"
 	"github.com/speedata/pdfa11y/internal/model"
 	"github.com/speedata/pdfa11y/internal/pdfua"
 )
 
-// OCGNoAS fails when the default Optional Content configuration
-// dictionary carries an /AS key.
+// OCGNoAS fails when an Optional Content configuration dictionary carries an
+// /AS key.
 //
 // "The AS key shall not appear in any optional content configuration
 // dictionary." The /AS key declares automatic state-change rules that
@@ -17,12 +19,8 @@ import (
 //
 // Spec gating: both PDF/UA-1 and PDF/UA-2. The prohibition is present
 // verbatim in ISO 14289-1 §7.10 (Matterhorn 20-003) and ISO 14289-2
-// §8.7 -- so the check must fire on UA-1 documents too.
-//
-// Limitation: only /OCProperties/D (the default configuration) is
-// inspected today. /OCProperties/Configs (alternate
-// configurations) is rarely used in practice; checking it requires
-// a model-side array accessor which is tracked as future work.
+// §8.7 -- so the check must fire on UA-1 documents too. Both the default
+// /D configuration and every /Configs entry are inspected.
 type OCGNoAS struct{}
 
 func (OCGNoAS) ID() string                { return "UA-20-002" }
@@ -51,55 +49,27 @@ func (c OCGNoAS) Run(doc model.Document) []engine.Finding {
 			Message:  "document does not declare a PDF/UA conformance level (pdfuaid:part 1 or 2)",
 		}}
 	}
-	cat, err := doc.Catalog()
-	if err != nil {
+	configs := doc.OptionalContentConfigs()
+	if len(configs) == 0 {
 		return []engine.Finding{{
+			CheckID:  c.ID(),
+			Severity: engine.SeverityNotApplicable,
+			Message:  "document has no optional-content configurations to inspect",
+		}}
+	}
+	var findings []engine.Finding
+	for _, cfg := range configs {
+		if !cfg.HasAS {
+			continue
+		}
+		findings = append(findings, engine.Finding{
 			CheckID:  c.ID(),
 			Severity: engine.SeverityError,
-			Message:  "cannot read document catalog: " + err.Error(),
-		}}
+			Message:  fmt.Sprintf("optional-content configuration /OCProperties/%s declares /AS, which is forbidden by PDF/UA", cfg.Source),
+			Hint:     "Remove the /AS entry from the configuration dictionary. Layer state should be authored statically, not driven by usage-based automatic rules.",
+		})
 	}
-	ocpObj, ok := cat.Find("OCProperties")
-	if !ok {
-		return []engine.Finding{{
-			CheckID:  c.ID(),
-			Severity: engine.SeverityNotApplicable,
-			Message:  "document has no /OCProperties -- no optional-content configurations to inspect",
-		}}
-	}
-	ocp, err := doc.DereferenceDict(ocpObj)
-	if err != nil || ocp == nil {
-		return []engine.Finding{{
-			CheckID:  c.ID(),
-			Severity: engine.SeverityNotApplicable,
-			Message:  "/OCProperties does not resolve to a dictionary",
-		}}
-	}
-	dObj, ok := ocp.Find("D")
-	if !ok {
-		return []engine.Finding{{
-			CheckID:  c.ID(),
-			Severity: engine.SeverityNotApplicable,
-			Message:  "/OCProperties has no /D (default configuration) to inspect",
-		}}
-	}
-	d, err := doc.DereferenceDict(dObj)
-	if err != nil || d == nil {
-		return []engine.Finding{{
-			CheckID:  c.ID(),
-			Severity: engine.SeverityNotApplicable,
-			Message:  "/OCProperties/D does not resolve to a dictionary",
-		}}
-	}
-	if _, hasAS := d.Find("AS"); !hasAS {
-		return nil
-	}
-	return []engine.Finding{{
-		CheckID:  c.ID(),
-		Severity: engine.SeverityError,
-		Message:  "default optional-content configuration /OCProperties/D declares /AS, which is forbidden by PDF/UA",
-		Hint:     "Remove the /AS entry from the /D configuration dictionary. Layer state should be authored statically, not driven by usage-based automatic rules.",
-	}}
+	return findings
 }
 
 func init() { engine.Register(OCGNoAS{}) }

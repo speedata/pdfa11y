@@ -33,6 +33,11 @@ findings on pdfa11y's side or Matterhorn conditions that need a
 human reviewer. See [Development](#development) to reproduce the
 cross-validation locally.
 
+Coverage is also tracked rule-by-rule against veraPDF's PDF/UA-1 and
+PDF/UA-2 test-rule catalog — see
+[VERAPDF_COVERAGE.md](VERAPDF_COVERAGE.md) for the current map of which
+veraPDF rules pdfa11y covers, partially covers, or leaves out of scope.
+
 Run `pdfa11y --list-rules` for the current, build-specific list of registered checks.
 
 Still missing: font-glyph-level encoding analysis, finer-grained

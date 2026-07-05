@@ -57,6 +57,8 @@ type document struct {
 	annotationsLoaded   bool                  // tracks Annotations() cache (nil-slice is a valid value)
 	cachedClassMap      *pdd.Dict             // /StructTreeRoot/ClassMap, lazily resolved by classMap()
 	cachedClassMapKnown bool                  // distinguishes "not resolved yet" from "resolved, absent"
+	parentTreeMap       map[int]pdd.Object    // /StructParent key -> ParentTree value, lazily built
+	parentTreeLoaded    bool                  // tracks parentTree() cache
 }
 
 // loadRoleMap reads StructTreeRoot/RoleMap and caches custom-to-standard
@@ -212,6 +214,10 @@ func (d dict) Find(key string) (model.Object, bool) {
 	return obj, true
 }
 
+func (d dict) String(key string) (string, bool) {
+	return d.inner.String(key)
+}
+
 // asObject converts a model.Object back to the pdfdisassembler Object
 // type the backend expects.
 func asObject(obj model.Object) (pdd.Object, error) {
@@ -223,6 +229,102 @@ func asObject(obj model.Object) (pdd.Object, error) {
 		return nil, fmt.Errorf("not a pdfdisassembler object: %T", obj)
 	}
 	return pobj, nil
+}
+
+// structTreeRootDict returns the raw /StructTreeRoot dictionary, or (nil,
+// false) when absent.
+func (d *document) structTreeRootDict() (*pdd.Dict, bool) {
+	cat, err := d.r.Catalog()
+	if err != nil {
+		return nil, false
+	}
+	return cat.Dict("StructTreeRoot")
+}
+
+func (d *document) RoleMap() map[string]string {
+	out := map[string]string{}
+	stree, ok := d.structTreeRootDict()
+	if !ok {
+		return out
+	}
+	rm, ok := stree.Dict("RoleMap")
+	if !ok {
+		return out
+	}
+	for _, k := range rm.Keys() {
+		if n, ok := rm.Name(k); ok {
+			out[k] = string(n)
+		}
+	}
+	return out
+}
+
+func (d *document) Namespaces() []model.Namespace {
+	stree, ok := d.structTreeRootDict()
+	if !ok {
+		return nil
+	}
+	arr, ok := stree.Array("Namespaces")
+	if !ok {
+		return nil
+	}
+	var out []model.Namespace
+	for _, item := range arr {
+		nsDict, err := d.r.ResolveDict(item)
+		if err != nil || nsDict == nil {
+			continue
+		}
+		ns := model.Namespace{}
+		if uri, ok := nsDict.String("NS"); ok {
+			ns.URI = uri
+		}
+		if rmns, ok := nsDict.Dict("RoleMapNS"); ok {
+			ns.RoleMapNS = map[string][]model.RoleTarget{}
+			for _, k := range rmns.Keys() {
+				if v, ok := rmns.Get(k); ok {
+					ns.RoleMapNS[k] = d.roleTargets(v, ns.URI)
+				}
+			}
+		}
+		out = append(out, ns)
+	}
+	return out
+}
+
+// roleTargets resolves one /RoleMapNS value -- a Name (target in the same
+// namespace) or an array [targetType, namespaceRef] -- into RoleTargets.
+// ownURI is the URI of the namespace declaring this mapping, used as the
+// default target namespace.
+func (d *document) roleTargets(v pdd.Object, ownURI string) []model.RoleTarget {
+	resolved, err := d.r.Resolve(v)
+	if err != nil {
+		return nil
+	}
+	switch t := resolved.(type) {
+	case pdd.Name:
+		return []model.RoleTarget{{Type: string(t), NamespaceURI: ownURI}}
+	case pdd.Array:
+		rt := model.RoleTarget{NamespaceURI: ownURI}
+		if len(t) >= 1 {
+			if n, err := d.r.Resolve(t[0]); err == nil {
+				if name, ok := n.(pdd.Name); ok {
+					rt.Type = string(name)
+				}
+			}
+		}
+		if len(t) >= 2 {
+			if nsDict, err := d.r.ResolveDict(t[1]); err == nil && nsDict != nil {
+				if uri, ok := nsDict.String("NS"); ok {
+					rt.NamespaceURI = uri
+				}
+			}
+		}
+		if rt.Type == "" {
+			return nil
+		}
+		return []model.RoleTarget{rt}
+	}
+	return nil
 }
 
 func (d *document) StructTreeRoot() (model.StructElement, error) {
@@ -260,6 +362,44 @@ func (d *document) StructTreeRoot() (model.StructElement, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (d *document) StructTreeRootKids() ([]model.StructElement, bool) {
+	stree, ok := d.structTreeRootDict()
+	if !ok {
+		return nil, false
+	}
+	kObj, ok := stree.Get("K")
+	if !ok {
+		// Present but childless root.
+		return nil, true
+	}
+	resolved, err := d.r.Resolve(kObj)
+	if err != nil {
+		return nil, true
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case *pdd.Dict:
+		items = []pdd.Object{v}
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		return nil, true
+	}
+	var kids []model.StructElement
+	for _, item := range items {
+		cd, err := d.r.ResolveDict(item)
+		if err != nil || cd == nil {
+			continue
+		}
+		// Structure elements always carry /S; MCR/OBJR children do not.
+		if _, hasS := cd.Get("S"); !hasS {
+			continue
+		}
+		kids = append(kids, structElement{doc: d, dict: cd})
+	}
+	return kids, true
 }
 
 // structElement implements model.StructElement on top of a pdfdisassembler
@@ -343,6 +483,167 @@ func (e structElement) Children() []model.StructElement {
 		children = append(children, structElement{doc: e.doc, dict: childDict})
 	}
 	return children
+}
+
+// EnclosedWidgetCount counts the /K children that are OBJR references
+// (identified by an /Obj entry and the absence of /S) whose /Obj resolves
+// to a /Subtype /Widget annotation. Structure-element children (/S) and
+// marked-content references are ignored. Used by UA-28-027 (ISO 14289-2
+// §8.10.1).
+func (e structElement) EnclosedWidgetCount() int {
+	kObj, ok := e.dict.Get("K")
+	if !ok {
+		return 0
+	}
+	resolved, err := e.doc.r.Resolve(kObj)
+	if err != nil {
+		return 0
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+	n := 0
+	for _, item := range items {
+		childDict, err := e.doc.r.ResolveDict(item)
+		if err != nil || childDict == nil {
+			continue
+		}
+		// A structure element carries /S; an OBJR carries /Obj. Only the
+		// latter references an annotation.
+		if _, hasS := childDict.Get("S"); hasS {
+			continue
+		}
+		objRef, ok := childDict.Get("Obj")
+		if !ok {
+			continue
+		}
+		annot, err := e.doc.r.ResolveDict(objRef)
+		if err != nil || annot == nil {
+			continue
+		}
+		if sub, _ := annot.Name("Subtype"); sub == "Widget" {
+			n++
+		}
+	}
+	return n
+}
+
+// EnclosesSignatureWidget reports whether this element directly encloses a
+// signature-field widget (an OBJR whose annotation is a /Subtype /Widget whose
+// owning form field has /FT /Sig). See the interface doc for UA-28-036.
+func (e structElement) EnclosesSignatureWidget() bool {
+	kObj, ok := e.dict.Get("K")
+	if !ok {
+		return false
+	}
+	resolved, err := e.doc.r.Resolve(kObj)
+	if err != nil {
+		return false
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+	for _, item := range items {
+		childDict, err := e.doc.r.ResolveDict(item)
+		if err != nil || childDict == nil {
+			continue
+		}
+		if _, hasS := childDict.Get("S"); hasS {
+			continue
+		}
+		objRef, ok := childDict.Get("Obj")
+		if !ok {
+			continue
+		}
+		annot, err := e.doc.r.ResolveDict(objRef)
+		if err != nil || annot == nil {
+			continue
+		}
+		if sub, _ := annot.Name("Subtype"); sub != "Widget" {
+			continue
+		}
+		if e.doc.widgetFieldType(annot) == "Sig" {
+			return true
+		}
+	}
+	return false
+}
+
+// widgetFieldType returns the /FT of the form field that owns the given widget
+// annotation, resolved up the /Parent chain (eight levels). Empty when the
+// widget has no field ancestry.
+func (d *document) widgetFieldType(annot *pdd.Dict) string {
+	cur := annot
+	for range 8 {
+		if ft, ok := cur.Name("FT"); ok {
+			return string(ft)
+		}
+		parentObj, ok := cur.Get("Parent")
+		if !ok {
+			return ""
+		}
+		parent, err := d.r.ResolveDict(parentObj)
+		if err != nil || parent == nil {
+			return ""
+		}
+		cur = parent
+	}
+	return ""
+}
+
+// EnclosedLinkTargets walks /K for OBJR children referencing /Subtype
+// /Link annotations and returns each one's canonical target key (see
+// document.linkTargetKey). Links with no determinable target are omitted.
+// Used by UA-28-030 (ISO 14289-2 §8.2.5.20).
+func (e structElement) EnclosedLinkTargets() []string {
+	kObj, ok := e.dict.Get("K")
+	if !ok {
+		return nil
+	}
+	resolved, err := e.doc.r.Resolve(kObj)
+	if err != nil {
+		return nil
+	}
+	var items []pdd.Object
+	switch v := resolved.(type) {
+	case pdd.Array:
+		items = []pdd.Object(v)
+	default:
+		items = []pdd.Object{v}
+	}
+	var out []string
+	for _, item := range items {
+		childDict, err := e.doc.r.ResolveDict(item)
+		if err != nil || childDict == nil {
+			continue
+		}
+		if _, hasS := childDict.Get("S"); hasS {
+			continue // a structure element, not an OBJR
+		}
+		objRef, ok := childDict.Get("Obj")
+		if !ok {
+			continue
+		}
+		annot, err := e.doc.r.ResolveDict(objRef)
+		if err != nil || annot == nil {
+			continue
+		}
+		if sub, _ := annot.Name("Subtype"); sub != "Link" {
+			continue
+		}
+		if key := e.doc.linkTargetKey(annot); key != "" {
+			out = append(out, key)
+		}
+	}
+	return out
 }
 
 // Content walks /K in order and returns the element's content as an
@@ -481,6 +782,140 @@ func (e structElement) Attribute(name string) string {
 		return v
 	}
 	return e.doc.attributeFromClass(e.dict, name)
+}
+
+func (e structElement) AttributeInt(name string) (int, bool) {
+	if v, ok := intInAttrOwner(e.doc, e.dict.Get, "A", name); ok {
+		return v, true
+	}
+	return e.doc.intAttributeFromClass(e.dict, name)
+}
+
+func (e structElement) Same(other model.StructElement) bool {
+	o, ok := other.(structElement)
+	// The reader caches resolved objects by indirect reference, so the same
+	// structure element always resolves to the same *pdd.Dict pointer.
+	return ok && e.dict == o.dict
+}
+
+func (e structElement) ID() string {
+	if b, ok := e.dict.Bytes("ID"); ok {
+		return string(b)
+	}
+	return ""
+}
+
+func (e structElement) HasParent() bool {
+	_, ok := e.dict.Get("P")
+	return ok
+}
+
+func (e structElement) HeaderIDs() []string {
+	if v, ok := stringsInAttrOwner(e.doc, e.dict.Get, "A", "Headers"); ok {
+		return v
+	}
+	if cObj, ok := e.dict.Get("C"); ok {
+		if classMap, ok := e.doc.classMap(); ok {
+			for _, cls := range classNamesFrom(cObj, e.doc) {
+				if v, ok := stringsInAttrOwner(e.doc, classMap.Get, cls, "Headers"); ok {
+					return v
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// stringsInAttrOwner reads an array-valued attribute (e.g. /Headers) from the
+// attribute-owner dict(s) reached via getFn[key], returning the array's
+// string elements. The bool distinguishes "attribute present" (possibly an
+// empty array) from "attribute absent".
+func stringsInAttrOwner(d *document, getFn func(string) (pdd.Object, bool), key, attrName string) ([]string, bool) {
+	obj, ok := getFn(key)
+	if !ok {
+		return nil, false
+	}
+	resolved, err := d.r.Resolve(obj)
+	if err != nil {
+		return nil, false
+	}
+	var owners []*pdd.Dict
+	switch v := resolved.(type) {
+	case *pdd.Dict:
+		owners = append(owners, v)
+	case pdd.Array:
+		for _, item := range v {
+			if od, err := d.r.ResolveDict(item); err == nil && od != nil {
+				owners = append(owners, od)
+			}
+		}
+	}
+	for _, od := range owners {
+		arr, ok := od.Array(attrName)
+		if !ok {
+			continue
+		}
+		out := []string{}
+		for _, el := range arr {
+			rel, err := d.r.Resolve(el)
+			if err != nil {
+				continue
+			}
+			if s, ok := rel.(pdd.String); ok {
+				out = append(out, string(s))
+			}
+		}
+		return out, true
+	}
+	return nil, false
+}
+
+// intInAttrOwner mirrors nameInAttrOwner for integer-valued attributes
+// (e.g. /RowSpan, /ColSpan on table cells).
+func intInAttrOwner(d *document, getFn func(string) (pdd.Object, bool), key, attrName string) (int, bool) {
+	obj, ok := getFn(key)
+	if !ok {
+		return 0, false
+	}
+	resolved, err := d.r.Resolve(obj)
+	if err != nil {
+		return 0, false
+	}
+	switch v := resolved.(type) {
+	case *pdd.Dict:
+		if n, ok := v.Int(attrName); ok {
+			return int(n), true
+		}
+	case pdd.Array:
+		for _, item := range v {
+			itemDict, err := d.r.ResolveDict(item)
+			if err != nil || itemDict == nil {
+				continue
+			}
+			if n, ok := itemDict.Int(attrName); ok {
+				return int(n), true
+			}
+		}
+	}
+	return 0, false
+}
+
+// intAttributeFromClass mirrors attributeFromClass for integer values.
+func (d *document) intAttributeFromClass(elemDict *pdd.Dict, attrName string) (int, bool) {
+	cObj, ok := elemDict.Get("C")
+	if !ok {
+		return 0, false
+	}
+	classMap, ok := d.classMap()
+	if !ok {
+		return 0, false
+	}
+	for _, cls := range classNamesFrom(cObj, d) {
+		if v, ok := intInAttrOwner(d, classMap.Get, cls, attrName); ok {
+			return v, true
+		}
+	}
+	return 0, false
 }
 
 // nameInAttrOwner reads key on dict (via getFn), resolves it as an
@@ -777,6 +1212,7 @@ func (d *document) fontIsEmbedded(font *pdd.Dict, subtype string) bool {
 //     32000-1 §9.7.4.2 makes Identity the default)
 //   - "Stream"   — a stream is present
 //   - <name>     — any other Name value (the UA-31-001 failure path)
+//
 // Only meaningful when the descendant is CIDFontType2; CIDFontType0
 // (Adobe CFF source) has no CIDToGIDMap at all and the field stays
 // "".

@@ -35,6 +35,12 @@ func TestGluPDFUADemo(t *testing.T) {
 		// requirement: the file declares pdfuaid:part but not
 		// pdfuaid:rev. Tolerated until the demo regenerates.
 		"UA-06-006": "fixture predates the ISO 14289-2 §5 pdfuaid:rev requirement",
+		// The demo declares pdfuaid:part 1: it is a PDF/UA-1 file, and
+		// its outline items legitimately use page destinations. Structure
+		// destinations (ISO 14289-2 §8.8) are a PDF/UA-2-only requirement;
+		// this test runs every check regardless of the document's declared
+		// spec, so the UA-2-only rule fires vacuously here.
+		"UA-27-003": "PDF/UA-1 document; structure destinations are a PDF/UA-2-only requirement",
 	}
 	doc, err := pdf.LoadFile("testdata/glu-pdfua-demo.pdf")
 	if err != nil {

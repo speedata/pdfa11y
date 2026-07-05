@@ -1,0 +1,1227 @@
+source: veraPDF-validation-profiles v1.28.1-72-gab0fbe6
+rules:
+  - vera: UA1:5-1
+    object: MainXMPPackage
+    desc: The PDF/UA version and conformance level of a file shall be specified using the PDF/UA Identification extension schema
+    status: covered
+    checks:
+      - UA-06-003
+  - vera: UA1:5-2
+    object: PDFUAIdentification
+    desc: The value of "pdfuaid:part" shall be the part number of the International Standard to which the file conforms
+    status: partial
+    checks:
+      - UA-06-003
+    note: UA-06-003 checks the PDF/UA identifier is present; corpus 5-t02-fail-a shows it does not flag a wrong pdfuaid:part value for UA-1.
+  - vera: UA1:5-3
+    object: PDFUAIdentification
+    desc: Property "part" of the PDF/UA Identification Schema shall have namespace prefix "pdfuaid"
+    status: n/a
+    checks: []
+    note: XMP schema namespace-prefix mechanics; pdfa11y reads pdfuaid:part directly and does not validate schema prefix declarations.
+  - vera: UA1:5-4
+    object: PDFUAIdentification
+    desc: Property "amd" of the PDF/UA Identification Schema shall have namespace prefix "pdfuaid"
+    status: n/a
+    checks: []
+    note: XMP schema namespace-prefix mechanics; pdfa11y reads pdfuaid:part directly and does not validate schema prefix declarations.
+  - vera: UA1:5-5
+    object: PDFUAIdentification
+    desc: Property "corr" of the PDF/UA Identification Schema shall have namespace prefix "pdfuaid"
+    status: n/a
+    checks: []
+    note: XMP schema namespace-prefix mechanics; pdfa11y reads pdfuaid:part directly and does not validate schema prefix declarations.
+  - vera: UA1:6.1-1
+    object: CosDocument
+    desc: The file header shall consist of "%PDF-1.n" followed by a single EOL marker, where 'n' is a single digit number between 0 (30h) and 7 (37h)
+    status: n/a
+    checks: []
+    note: Low-level PDF file-header syntax handled by the parser layer; not an accessibility concern.
+  - vera: UA1:6.2-1
+    object: CosDocument
+    desc: The document catalog dictionary shall include a MarkInfo dictionary containing an entry, Marked, whose value shall be true
+    status: covered
+    checks:
+      - UA-01-002
+  - vera: UA1:7.1-1
+    object: SEMarkedContent
+    desc: Content marked as Artifact should not be present inside tagged content
+    status: covered
+    checks:
+      - UA-14-010
+  - vera: UA1:7.1-2
+    object: SEMarkedContent
+    desc: Tagged content should not be present inside content marked as Artifact
+    status: covered
+    checks:
+      - UA-14-010
+  - vera: UA1:7.1-3
+    object: SESimpleContentItem
+    desc: Content shall be marked as Artifact or tagged as real content
+    status: covered
+    checks:
+      - UA-14-001
+  - vera: UA1:7.1-4
+    object: CosDocument
+    desc: Files shall have a Suspects value of false(ISO 32000-1:2008, Table 321)
+    status: covered
+    checks:
+      - UA-01-016
+  - vera: UA1:7.1-5
+    object: SENonStandard
+    desc: All non-standard structure types shall be mapped to the nearest functionally equivalent standard type, as defined in ISO 32000-1:2008, 14.8.4, in the role map dictionary of the structure tree root. This mapping may be indirect; within the role map a non-standard type can map directly to another non-standard type, but eventually the mapping shall terminate at a standard type
+    status: partial
+    checks:
+      - UA-31-008
+    note: UA-31-008 flags role maps that never resolve to a standard type but misses the corpus 7.1-t05-fail-c variant.
+  - vera: UA1:7.1-6
+    object: PDStructElem
+    desc: A circular mapping shall not exist
+    status: covered
+    checks:
+      - UA-31-009
+  - vera: UA1:7.1-7
+    object: PDStructElem
+    desc: Standard tags defined in ISO 32000-1:2008, 14.8.4, shall not be remapped
+    status: covered
+    checks:
+      - UA-31-010
+  - vera: UA1:7.1-8
+    object: PDDocument
+    desc: The Catalog dictionary of a conforming file shall contain the Metadata key whose value is a metadata stream as defined in ISO 32000-1:2008, 14.3.2. The metadata stream dictionary shall contain entry Type with value /Metadata and entry Subtype with value /XML
+    status: partial
+    checks:
+      - UA-06-003
+    note: Presence of the /Metadata stream is enforced; the Type=/Metadata and Subtype=/XML sub-entries are not verified.
+  - vera: UA1:7.1-9
+    object: MainXMPPackage
+    desc: The Metadata stream in the document's catalog dictionary shall contain a dc:title entry, where dc is the recommended prefix for the Dublin Core metadata schema as defined in the XMP specification, which clearly identifies the document
+    status: covered
+    checks:
+      - UA-06-004
+  - vera: UA1:7.1-10
+    object: CosDocument
+    desc: The document catalog dictionary shall include a ViewerPreferences dictionary containing a DisplayDocTitle key, whose value shall be true
+    status: covered
+    checks:
+      - UA-07-001
+  - vera: UA1:7.1-11
+    object: PDDocument
+    desc: The logical structure of the conforming file shall be described by a structure hierarchy rooted in the StructTreeRoot entry of the document catalog dictionary, as described in ISO 32000-1:2008, 14.7
+    status: covered
+    checks:
+      - UA-01-005
+  - vera: UA1:7.1-12
+    object: PDStructElem
+    desc: A structure element dictionary shall contain the P (parent) entry according to ISO 32000-1:2008, 14.7.2, Table 355
+    status: covered
+    checks:
+      - UA-01-014
+  - vera: UA1:7.2-2
+    object: PDOutline
+    desc: Natural language in the Outline entries shall be determined
+    status: covered
+    checks:
+      - UA-11-006
+  - vera: UA1:7.2-3
+    object: SETable
+    desc: Table element may contain only TR, THead, TBody, TFoot and Caption elements
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-4
+    object: SETR
+    desc: TR element should be contained in Table, THead, TBody or TFoot element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-5
+    object: SETHead
+    desc: THead element should be contained in Table element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-6
+    object: SETBody
+    desc: TBody element should be contained in Table element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-7
+    object: SETFoot
+    desc: TFoot element should be contained in Table element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-8
+    object: SETH
+    desc: TH element should be contained in TR element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-9
+    object: SETD
+    desc: TD element should be contained in TR element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-10
+    object: SETR
+    desc: TR element may contain only TH and TD elements
+    status: covered
+    checks:
+      - UA-15-004
+  - vera: UA1:7.2-11
+    object: SETable
+    desc: Table element should contain zero or one THead kid
+    status: covered
+    checks:
+      - UA-15-009
+  - vera: UA1:7.2-12
+    object: SETable
+    desc: Table element should contain zero or one TFoot kid
+    status: covered
+    checks:
+      - UA-15-009
+  - vera: UA1:7.2-13
+    object: SETable
+    desc: If Table element contains TFoot kid, Table element should contain one or more TBody kids
+    status: covered
+    checks:
+      - UA-15-009
+  - vera: UA1:7.2-14
+    object: SETable
+    desc: If Table element contains THead kid, Table element should contain one or more TBody kids
+    status: covered
+    checks:
+      - UA-15-009
+  - vera: UA1:7.2-15
+    object: SETableCell
+    desc: A table cell shall not have intersection with other cells
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA1:7.2-16
+    object: SETable
+    desc: Table element may contain a Caption element as its first or last kid
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-17
+    object: SELI
+    desc: LI element should be contained in L element
+    status: covered
+    checks:
+      - UA-16-004
+  - vera: UA1:7.2-18
+    object: SELBody
+    desc: LBody element should be contained in LI element
+    status: covered
+    checks:
+      - UA-16-004
+  - vera: UA1:7.2-19
+    object: SEL
+    desc: L element may contain only L, LI and Caption elements
+    status: covered
+    checks:
+      - UA-16-004
+  - vera: UA1:7.2-20
+    object: SELI
+    desc: LI element may contain only Lbl and LBody elements
+    status: covered
+    checks:
+      - UA-16-004
+  - vera: UA1:7.2-21
+    object: PDStructElem
+    desc: Natural language for text in ActualText attribute shall be determined
+    status: covered
+    checks:
+      - UA-11-004
+  - vera: UA1:7.2-22
+    object: PDStructElem
+    desc: Natural language for text in Alt attribute shall be determined
+    status: covered
+    checks:
+      - UA-11-004
+  - vera: UA1:7.2-23
+    object: PDStructElem
+    desc: Natural language for text in E attribute shall be determined
+    status: covered
+    checks:
+      - UA-11-004
+  - vera: UA1:7.2-24
+    object: PDAnnot
+    desc: Natural language in the Contents entry for annotations shall be determined
+    status: covered
+    checks:
+      - UA-11-005
+  - vera: UA1:7.2-25
+    object: PDFormField
+    desc: Natural language in the TU key for form fields shall be determined
+    status: covered
+    checks:
+      - UA-11-009
+  - vera: UA1:7.2-26
+    object: SETOCI
+    desc: TOCI element should be contained in TOC element
+    status: covered
+    checks:
+      - UA-27-002
+  - vera: UA1:7.2-27
+    object: SETOC
+    desc: TOC element may contain only TOC, TOCI and Caption elements
+    status: covered
+    checks:
+      - UA-27-002
+  - vera: UA1:7.2-28
+    object: SETOC
+    desc: TOC element may contain a Caption element only as its first kid
+    status: covered
+    checks:
+      - UA-27-002
+  - vera: UA1:7.2-29
+    object: CosLang
+    desc: If the Lang entry is present in the document's Catalog dictionary or in a structure element dictionary or property list, its value shall be a language identifier as described in ISO 32000-1:2008, 14.9.2. A language identifier shall be a Language-Tag as defined in RFC 3066, Tags for the Identification of Languages
+    status: partial
+    checks:
+      - UA-11-003
+    note: UA-11-003 validates RFC 3066 format of Catalog and structure-element /Lang, but not marked-content property-list /Lang (corpus 8.4.4-t02-fail-h/-i), which the model does not expose.
+  - vera: UA1:7.2-30
+    object: SEMarkedContent
+    desc: Natural language for text in ActualText attribute in Span Marked Content shall be determined
+    status: covered
+    checks:
+      - UA-11-008
+  - vera: UA1:7.2-31
+    object: SEMarkedContent
+    desc: Natural language for text in Alt attribute in Span Marked Content shall be determined
+    status: covered
+    checks:
+      - UA-11-008
+  - vera: UA1:7.2-32
+    object: SEMarkedContent
+    desc: Natural language for text in E attribute in Span Marked Content shall be determined
+    status: covered
+    checks:
+      - UA-11-008
+  - vera: UA1:7.2-33
+    object: XMPLangAlt
+    desc: Natural language for document metadata shall be determined
+    status: covered
+    checks:
+      - UA-11-007
+  - vera: UA1:7.2-34
+    object: SETextItem
+    desc: Natural language for text in page content shall be determined
+    status: partial
+    checks:
+      - UA-11-001
+      - UA-11-002
+    note: Language determinability is enforced at struct-element granularity (catalog /Lang plus per-element /Lang), not per text run.
+  - vera: UA1:7.2-36
+    object: SETHead
+    desc: THead element may contain only TR elements
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-37
+    object: SETBody
+    desc: TBody element may contain only TR elements
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-38
+    object: SETFoot
+    desc: TFoot element may contain only TR elements
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-39
+    object: SETable
+    desc: Table element may contain only one Caption element
+    status: covered
+    checks:
+      - UA-15-008
+  - vera: UA1:7.2-40
+    object: SEL
+    desc: L element may contain a Caption element only as its first kid
+    status: covered
+    checks:
+      - UA-16-004
+  - vera: UA1:7.2-41
+    object: SETable
+    desc: Table columns shall have the same number of rows (taking into account row spans)
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA1:7.2-42
+    object: SETable
+    desc: Table rows shall have the same number of columns (taking into account column spans)
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA1:7.2-43
+    object: SETable
+    desc: Table rows shall have the same number of columns (taking into account column spans)
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA1:7.3-1
+    object: SEFigure
+    desc: Figure tags shall include an alternative representation or replacement text that represents the contents marked with the Figure tag as noted in ISO 32000-1:2008, 14.7.2, Table 323
+    status: covered
+    checks:
+      - UA-13-004
+  - vera: UA1:7.4.2-1
+    object: SEHn
+    desc: 'For documents that are not strongly structured, as described in ISO 32000-1:2008, 14.8.4.3.5, heading tags shall be used as follows: (*) If any heading tags are used, H1 shall be the first. (*) A document may use more than one instance of any specific tag level. For example, a tag level may be repeated if document content requires it. (*) If document semantics require a descending sequence of headers, such a sequence shall proceed in strict numerical order and shall not skip an intervening heading level. (*) A document may increment its heading sequence without restarting at H1 if document semantics require it'
+    status: covered
+    checks:
+      - UA-14-003
+  - vera: UA1:7.4.4-1
+    object: PDStructElem
+    desc: Each node in the tag tree shall contain at most one child H tag
+    status: covered
+    checks:
+      - UA-14-008
+  - vera: UA1:7.4.4-2
+    object: SEH
+    desc: All documents shall be either strongly or weakly structured, but not both
+    status: covered
+    checks:
+      - UA-14-006
+  - vera: UA1:7.4.4-3
+    object: SEHn
+    desc: All documents shall be either strongly or weakly structured, but not both
+    status: covered
+    checks:
+      - UA-14-006
+  - vera: UA1:7.5-1
+    object: SETD
+    desc: If the table's structure is not determinable via Headers and IDs, then structure elements of type TH shall have a Scope attribute
+    status: partial
+    checks:
+      - UA-15-005
+    note: 'Over-reports: UA-15-005 requires /Scope on every TH and ignores the Headers/IDs alternative this rule permits (corpus 7.5-t01-pass-b..e are false positives).'
+  - vera: UA1:7.5-2
+    object: SETD
+    desc: If the table's structure is not determinable via Headers and IDs, then structure elements of type TH shall have a Scope attribute
+    status: covered
+    checks:
+      - UA-15-005
+    note: UA-15-005 requires /Scope on every TH; it does not honor the Headers/IDs alternative, so it may over-report.
+  - vera: UA1:7.7-1
+    object: SEFormula
+    desc: All mathematical expressions shall be enclosed within a Formula tag as detailed in ISO 32000-1:2008, 14.8.4.5 and shall have Alt or ActualText attributes
+    status: covered
+    checks:
+      - UA-17-001
+  - vera: UA1:7.9-1
+    object: SENote
+    desc: Note tag shall have ID entry
+    status: covered
+    checks:
+      - UA-19-001
+  - vera: UA1:7.9-2
+    object: SENote
+    desc: Each Note tag shall have unique ID key
+    status: covered
+    checks:
+      - UA-19-003
+  - vera: UA1:7.10-1
+    object: PDOCConfig
+    desc: Each optional content configuration dictionary that forms the value of the D key, or that is an element in the array that forms the value of the Configs key in the OCProperties dictionary, shall contain the Name key
+    status: covered
+    checks:
+      - UA-20-003
+  - vera: UA1:7.10-2
+    object: PDOCConfig
+    desc: The AS key shall not appear in any optional content configuration dictionary
+    status: covered
+    checks:
+      - UA-20-002
+  - vera: UA1:7.11-1
+    object: CosFileSpecification
+    desc: The file specification dictionary for an embedded file shall contain the non-empty F and UF keys
+    status: covered
+    checks:
+      - UA-12-003
+  - vera: UA1:7.15-1
+    object: PDAcroForm
+    desc: Dynamic XFA forms shall not be used
+    status: covered
+    checks:
+      - UA-28-028
+  - vera: UA1:7.16-1
+    object: PDEncryption
+    desc: An encrypted conforming file shall contain a P key in its encryption dictionary (ISO 32000-1:2008, 7.6.3.2, Table 21). The 10th bit position of the P key shall be true
+    status: covered
+    checks:
+      - UA-26-001
+  - vera: UA1:7.18.1-1
+    object: PDAnnot
+    desc: An annotation, excluding annotations of subtype Widget, PrinterMark or Link, shall be nested within an Annot tag
+    status: partial
+    checks:
+      - UA-28-004
+    note: UA-28-004 requires the annotation to be linked into the structure tree via /StructParent; it does not verify the enclosing element is specifically an Annot tag.
+  - vera: UA1:7.18.1-2
+    object: PDAnnot
+    desc: An annotation (except Widget annotations or hidden annotations, or those having rectangle outside the crop-box) shall have either Contents key or an Alt entry in the enclosing structure element
+    status: covered
+    checks:
+      - UA-28-025
+  - vera: UA1:7.18.1-3
+    object: PDWidgetAnnot
+    desc: A form field shall have a TU key present or all its Widget annotations shall have alternative descriptions (in the form of an Alt entry in the enclosing structure elements)
+    status: covered
+    checks:
+      - UA-28-026
+  - vera: UA1:7.18.2-1
+    object: PDTrapNetAnnot
+    desc: Annotations of subtype TrapNet shall not be permitted
+    status: covered
+    checks:
+      - UA-28-012
+  - vera: UA1:7.18.3-1
+    object: PDPage
+    desc: Every page on which there is an annotation shall contain in its page dictionary the key Tabs, and its value shall be S
+    status: covered
+    checks:
+      - UA-08-001
+  - vera: UA1:7.18.4-1
+    object: PDWidgetAnnot
+    desc: A Widget annotation shall be nested within a Form tag per ISO 32000-1:2008, 14.8.4.5, Table 340
+    status: covered
+    checks:
+      - UA-28-014
+  - vera: UA1:7.18.4-2
+    object: SEForm
+    desc: 'If the Form element omits a Role attribute (Table 348), it shall have only one child: an object reference (14.7.4.3) identifying the widget annotation per ISO 32000-1:2008, 14.8.4.5, Table 340'
+    status: covered
+    checks:
+      - UA-28-032
+    note: 'Fixture-only: the veraPDF corpus has no 7.18.4-t02 file, only -t01 (widget-in-Form nesting, rule -1).'
+  - vera: UA1:7.18.5-1
+    object: PDLinkAnnot
+    desc: Links shall be tagged according to ISO 32000-1:2008, 14.8.4.4.2, Link Element
+    status: covered
+    checks:
+      - UA-28-013
+  - vera: UA1:7.18.5-2
+    object: PDLinkAnnot
+    desc: Links shall contain an alternate description via their Contents key as described in ISO 32000-1:2008, 14.9.3
+    status: covered
+    checks:
+      - UA-28-001
+  - vera: UA1:7.18.6.2-1
+    object: PDMediaClip
+    desc: In the media clip data dictionary, the optional CT key (ISO 32000-1:2008, 13.2.4.2, Table 274) is required
+    status: covered
+    checks:
+      - UA-28-022
+  - vera: UA1:7.18.6.2-2
+    object: PDMediaClip
+    desc: In the media clip data dictionary, the optional Alt key (ISO 32000-1:2008, 13.2.4.2, Table 274) is required
+    status: covered
+    checks:
+      - UA-28-023
+  - vera: UA1:7.18.8-1
+    object: PDPrinterMarkAnnot
+    desc: PrinterMark annotations, if present, shall be considered Incidental Artifacts, as if they are hidden page elements as defined in ISO 32000-1:2008, 14.8.2.2.3
+    status: covered
+    checks:
+      - UA-28-006
+    note: UA-28-006 flags PrinterMark annotations that appear in the structure tree, enforcing their treatment as artifacts.
+  - vera: UA1:7.20-1
+    object: PDXForm
+    desc: A conforming file shall not contain any reference XObjects
+    status: covered
+    checks:
+      - UA-30-001
+  - vera: UA1:7.20-2
+    object: PDXForm
+    desc: The content of Form XObjects shall be incorporated into structure elements according to ISO 32000-1:2008, 14.7.2
+    status: covered
+    checks:
+      - UA-30-002
+  - vera: UA1:7.21.3.1-1
+    object: PDType0Font
+    desc: 'For any given composite (Type 0) font within a conforming file, the CIDSystemInfo entry in its CIDFont dictionary and its Encoding dictionary shall have the following relationship: - If the Encoding key in the Type 0 font dictionary is Identity-H or Identity-V, any values of Registry, Ordering, and Supplement may be used in the CIDSystemInfo entry of the CIDFont. - Otherwise, the corresponding Registry and Ordering strings in both CIDSystemInfo dictionaries shall be identical, and the value of the Supplement key in the CIDSystemInfo dictionary of the CIDFont shall be less than or equal to the Supplement key in the CIDSystemInfo dictionary of the CMap'
+    status: n/a
+    checks: []
+    note: Low-level composite-font CIDSystemInfo/Encoding mechanics; not an accessibility concern.
+  - vera: UA1:7.21.3.2-1
+    object: PDCIDFont
+    desc: ISO 32000-1:2008, 9.7.4, Table 117 requires that all embedded Type 2 CIDFonts in the CIDFont dictionary shall contain a CIDToGIDMap entry that shall be a stream mapping from CIDs to glyph indices or the name Identity, as described in ISO 32000-1:2008, 9.7.4, Table 117
+    status: partial
+    checks:
+      - UA-31-001
+    note: UA-31-001 validates CIDToGIDMap presence/form but misses the corpus 7.21.3.2-t01-fail-b/-c variants.
+  - vera: UA1:7.21.3.3-1
+    object: PDCMap
+    desc: All CMaps used within a PDF/UA file, except those listed in ISO 32000-1:2008, 9.7.5.2, Table 118, shall be embedded in that file as described in ISO 32000-1:2008, 9.7.5
+    status: n/a
+    checks: []
+    note: Low-level CMap embedding mechanics (ISO 32000 font rendering); not an accessibility concern.
+  - vera: UA1:7.21.3.3-2
+    object: CMapFile
+    desc: For those CMaps that are embedded, the integer value of the WMode entry in the CMap dictionary shall be identical to the WMode value in the embedded CMap stream
+    status: n/a
+    checks: []
+    note: Low-level CMap WMode consistency; font-rendering mechanics, not accessibility.
+  - vera: UA1:7.21.3.3-3
+    object: PDReferencedCMap
+    desc: A CMap shall not reference any other CMap except those listed in ISO 32000-1:2008, 9.7.5.2, Table 118
+    status: n/a
+    checks: []
+    note: Low-level CMap reference mechanics; not an accessibility concern.
+  - vera: UA1:7.21.4.1-1
+    object: PDFont
+    desc: The font programs for all fonts used for rendering within a conforming file shall be embedded within that file, as defined in ISO 32000-1:2008, 9.9
+    status: partial
+    checks:
+      - UA-09-001
+    note: UA-09-001 reports non-embedded standard-14 fonts as a warning, not an error, so it does not hard-fail corpus 7.21.4.1-t01-fail-a.
+  - vera: UA1:7.21.4.1-2
+    object: Glyph
+    desc: Embedded fonts shall define all glyphs referenced for rendering within the conforming file. A font referenced solely in text rendering mode 3 is not rendered and is thus exempt from the requirements that impact the visual representation of the glyphs of a font. In all cases for TrueType fonts that are to be rendered, character codes shall be able to be mapped to glyphs according to ISO 32000-1:2008, 9.6.6.4 without the use of a non-standard mapping chosen by the conforming processor
+    status: n/a
+    checks: []
+    note: Requires parsing font-program glyph tables (rendering-level); out of scope for the structural accessibility checker.
+  - vera: UA1:7.21.4.2-1
+    object: PDType1Font
+    desc: If the FontDescriptor dictionary of an embedded Type 1 font contains a CharSet string, then it shall list the character names of all glyphs present in the font program, regardless of whether a glyph in the font is referenced or used by the PDF or not
+    status: n/a
+    checks: []
+    note: Type 1 CharSet consistency; font-program internals, not an accessibility concern.
+  - vera: UA1:7.21.4.2-2
+    object: PDCIDFont
+    desc: If the FontDescriptor dictionary of an embedded CID font contains a CIDSet stream, then it shall identify all CIDs which are present in the font program, regardless of whether a CID in the font is referenced or used by the PDF or not
+    status: n/a
+    checks: []
+    note: CIDSet consistency; font-program internals, not an accessibility concern.
+  - vera: UA1:7.21.5-1
+    object: Glyph
+    desc: For every font embedded in a conforming file and used for rendering, the glyph width information in the font dictionary and in the embedded font program shall be consistent
+    status: n/a
+    checks: []
+    note: Glyph-width consistency between font dict and font program; rendering-level, not accessibility.
+  - vera: UA1:7.21.6-1
+    object: TrueTypeFontProgram
+    desc: For all non-symbolic TrueType fonts used for rendering, the embedded TrueType font program shall contain one or several non-symbolic cmap entries such that all necessary glyph lookups can be carried out
+    status: n/a
+    checks: []
+    note: TrueType cmap-table internals; font-rendering mechanics, not accessibility.
+  - vera: UA1:7.21.6-2
+    object: PDTrueTypeFont
+    desc: All non-symbolic TrueType fonts shall have either MacRomanEncoding or WinAnsiEncoding as the value for the Encoding key in the Font dictionary or as the value for the BaseEncoding key in the dictionary which is the value of the Encoding key in the Font dictionary. In addition, no non-symbolic TrueType font shall define a Differences array unless all of the glyph names in the Differences array are listed in the Adobe Glyph List and, if the font program is embedded, it shall contain at least the Microsoft Unicode (3,1 – Platform ID = 3, Encoding ID = 1) encoding in the 'cmap' table
+    status: n/a
+    checks: []
+    note: TrueType encoding/cmap internals; font-rendering mechanics, not accessibility.
+  - vera: UA1:7.21.6-3
+    object: PDTrueTypeFont
+    desc: Symbolic TrueType fonts shall not contain an Encoding entry in the font dictionary
+    status: n/a
+    checks: []
+    note: Symbolic TrueType Encoding entry; font-rendering mechanics, not accessibility.
+  - vera: UA1:7.21.6-4
+    object: TrueTypeFontProgram
+    desc: The 'cmap' table in the embedded font program for a symbolic TrueType font shall contain either exactly one encoding or it shall contain, at least, the Microsoft Symbol (3,0 - Platform ID=3, Encoding ID=0) encoding
+    status: n/a
+    checks: []
+    note: Symbolic TrueType cmap-subtable internals; font-rendering mechanics, not accessibility.
+  - vera: UA1:7.21.7-1
+    object: Glyph
+    desc: The Font dictionary of all fonts shall define the map of all used character codes to Unicode values, either via a ToUnicode entry, or other mechanisms as defined in ISO 14289-1, 7.21.7
+    status: partial
+    checks:
+      - UA-10-001
+      - UA-10-002
+    note: 'Over-reports: the rule permits Unicode mapping via mechanisms other than /ToUnicode; UA-10-001/002 require /ToUnicode, so corpus 7.21.7-t01-pass-a is a false positive.'
+  - vera: UA1:7.21.7-2
+    object: Glyph
+    desc: The Unicode values specified in the ToUnicode CMap shall all be greater than zero (0), but not equal to either U+FEFF or U+FFFE
+    status: covered
+    checks:
+      - UA-10-003
+  - vera: UA1:7.21.8-1
+    object: Glyph
+    desc: A PDF/UA compliant document shall not contain a reference to the .notdef glyph from any of the text showing operators, regardless of text rendering mode, in any content stream
+    status: covered
+    checks:
+      - UA-10-004
+    note: 'UA-10-004 detects the Type0/Identity code-0 case (CID 0 = glyph 0), which the corpus 7.21.8-t01-fail-a exercises. Simple-font .notdef references (unmapped code, or a glyph named .notdef via /Differences) need font-program glyph analysis and are not yet covered.'
+  - vera: UA2:5-1
+    object: MainXMPPackage
+    desc: The PDF/UA version of a file shall be specified in the value of the Metadata entry in the document catalog using the PDF/UA identification schema
+    status: covered
+    checks:
+      - UA-06-003
+  - vera: UA2:5-2
+    object: PDFUAIdentification
+    desc: The value of "pdfuaid:part" shall be the part number of the International Standard to which the file conforms
+    status: covered
+    checks:
+      - UA-06-003
+  - vera: UA2:5-3
+    object: PDFUAIdentification
+    desc: Property "part" of the PDF/UA Identification Schema shall have namespace prefix "pdfuaid"
+    status: n/a
+    checks: []
+    note: XMP schema namespace-prefix mechanics; pdfa11y reads pdfuaid:part directly and does not validate schema prefix declarations.
+  - vera: UA2:5-4
+    object: PDFUAIdentification
+    desc: Property "rev" of the PDF/UA Identification Schema shall have namespace prefix "pdfuaid"
+    status: n/a
+    checks: []
+    note: XMP schema namespace-prefix mechanics; pdfa11y reads pdfuaid:rev directly and does not validate schema prefix declarations.
+  - vera: UA2:5-5
+    object: PDFUAIdentification
+    desc: The value of "pdfuaid:rev" shall be "2024"
+    status: partial
+    checks:
+      - UA-06-006
+    note: UA-06-006 enforces presence of pdfuaid:rev; it does not verify the specific value 2024.
+  - vera: UA2:6.2-1
+    object: CosDocument
+    desc: The document catalog dictionary shall include a MarkInfo dictionary containing an entry, Marked, whose value shall be true
+    status: covered
+    checks:
+      - UA-01-002
+  - vera: UA2:8.2.1-1
+    object: PDDocument
+    desc: The logical structure of the conforming file shall be described by a structure hierarchy rooted in the StructTreeRoot entry of the document catalog dictionary, as described in ISO 32000-2:2020, 14.7
+    status: covered
+    checks:
+      - UA-01-005
+  - vera: UA2:8.2.1-2
+    object: PDStructElem
+    desc: A structure element dictionary shall contain the P (parent) entry according to ISO 32000-2:2020, 14.7.2, Table 323
+    status: covered
+    checks:
+      - UA-01-014
+  - vera: UA2:8.2.2-1
+    object: SESimpleContentItem
+    desc: Content that is not considered real shall be an artifact
+    status: covered
+    checks:
+      - UA-14-001
+  - vera: UA2:8.2.4-1
+    object: SENonStandard
+    desc: 'All structure elements shall belong to, or be role mapped to, at least one of the following namespaces specified in ISO 32000-2:2020, 14.8.6: — the PDF 1.7 namespace; — the PDF 2.0 namespace; — the MathML namespace'
+    status: partial
+    checks:
+      - UA-31-008
+    note: UA-31-008 enforces role-mapping of custom types to standard types; it does not fully validate the PDF 1.7 / PDF 2.0 / MathML namespace membership rules of ISO 32000-2 14.8.6.
+  - vera: UA2:8.2.4-2
+    object: PDStructElem
+    desc: A circular mapping shall not exist
+    status: covered
+    checks:
+      - UA-31-009
+  - vera: UA2:8.2.4-3
+    object: PDStructElem
+    desc: Within a given explicitly provided namespace, structure types shall not be role mapped to other structure types in the same namespace
+    status: covered
+    checks:
+      - UA-31-009
+  - vera: UA2:8.2.4-4
+    object: SENonStandard
+    desc: 'All structure elements shall belong to, or be role mapped to, at least one of the following namespaces specified in ISO 32000-2:2020, 14.8.6: — the PDF 1.7 namespace; — the PDF 2.0 namespace; — the MathML namespace'
+    status: covered
+    checks:
+      - UA-31-010
+  - vera: UA2:8.2.5.2-1
+    object: PDStructTreeRoot
+    desc: The structure tree root shall contain a single Document structure element as its only child, as specified in ISO 32000-2:2020, Annex L and ISO/TS 32005
+    status: covered
+    checks:
+      - UA-01-015
+  - vera: UA2:8.2.5.2-2
+    object: PDStructTreeRoot
+    desc: The structure tree root shall contain a single Document structure element as its only child. The namespace for that element shall be specified as the PDF 2.0 namespace
+    status: covered
+    checks:
+      - UA-01-008
+      - UA-01-015
+  - vera: UA2:8.2.5.8-1
+    object: SETOCI
+    desc: Each TOCI in the table of contents shall identify the target of the reference using the Ref entry, either directly on the TOCI structure element itself or on one of its child structure elements
+    status: covered
+    checks:
+      - UA-01-012
+    note: UA-01-012 requires a resolvable /Ref on the TOCI or a descendant; a /Ref that dangles (does not resolve to a structure element) is reported like a missing one.
+  - vera: UA2:8.2.5.12-1
+    object: SEH
+    desc: Conforming files shall not use the H structure type
+    status: covered
+    checks:
+      - UA-14-007
+  - vera: UA2:8.2.5.14-1
+    object: SENote
+    desc: The Note standard structure type shall not be present in conforming documents unless role mapped to a structure element in the PDF 2.0 namespace
+    status: covered
+    checks:
+      - UA-14-009
+  - vera: UA2:8.2.5.14-2
+    object: SEFENote
+    desc: Real content that refers to footnotes or endnotes (real content enclosed in FENote structure elements) shall use the Ref entry on the referring structure element to reference the FENote. The corresponding FENote shall also use the Ref entry to identify all citations that reference it
+    status: covered
+    checks:
+      - UA-19-002
+  - vera: UA2:8.2.5.14-3
+    object: SEFENote
+    desc: Real content that refers to footnotes or endnotes (real content enclosed in FENote structure elements) shall use the Ref entry on the referring structure element to reference the FENote. The corresponding FENote shall also use the Ref entry to identify all citations that reference it
+    status: covered
+    checks:
+      - UA-19-002
+  - vera: UA2:8.2.5.14-4
+    object: SEFENote
+    desc: The value of the NoteType attribute of the FENote structure element shall be Footnote, Endnote or None
+    status: covered
+    checks:
+      - UA-19-002
+  - vera: UA2:8.2.5.20-1
+    object: PDLinkAnnot
+    desc: A link annotation and its associated content shall be enclosed in either a Link or Reference structure element
+    status: covered
+    checks:
+      - UA-28-016
+  - vera: UA2:8.2.5.20-2
+    object: PDLinkAnnot
+    desc: Link annotations that target different locations shall be in separate Link or Reference structure elements
+    status: covered
+    checks:
+      - UA-28-030
+  - vera: UA2:8.2.5.23-1
+    object: SERuby
+    desc: 'A Ruby structure element shall contain a single RB structure element and a single RT structure element or a Ruby structure element shall consist of a four-element subsequence: RB, RP, RT, RP'
+    status: covered
+    checks:
+      - UA-01-017
+  - vera: UA2:8.2.5.24-1
+    object: SEWarichu
+    desc: Content typeset as warichu shall be tagged in a three-element sequence consisting of the structure elements WP, WT and WP, grouped inside a Warichu structure element
+    status: covered
+    checks:
+      - UA-01-018
+  - vera: UA2:8.2.5.25-1
+    object: SEL
+    desc: If Lbl structure elements are present, the ListNumbering attribute shall be present on the respective L structure element; in such cases the value None shall not be used
+    status: partial
+    checks:
+      - UA-16-003
+    note: UA-16-003 flags L elements lacking /ListNumbering; it does not enforce the UA-2 conditional (Lbl present) nor forbid the value None.
+  - vera: UA2:8.2.5.25-2
+    object: SELI
+    desc: Any real content within an LI structure element that is not enclosed in an Lbl structure element shall be enclosed in an LBody structure element
+    status: partial
+    checks:
+      - UA-16-002
+    note: UA-16-002 requires each LI to have a direct LBody child; it does not analyze placement of individual real-content runs.
+  - vera: UA2:8.2.5.26-1
+    object: SETableCell
+    desc: Tables shall be regular. A table cell shall not have intersection with other cells
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA2:8.2.5.26-2
+    object: SETable
+    desc: Tables shall be regular. Row groupings formed by THead, TBody and TFoot structure elements shall be regular. Table columns shall have the same number of rows (taking into account row spans) in table and each row groupings formed by THead, TBody and TFoot structure elements
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA2:8.2.5.26-3
+    object: SETable
+    desc: Tables shall be regular. Table rows shall have the same number of columns (taking into account column spans)
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA2:8.2.5.26-4
+    object: SETable
+    desc: Tables shall be regular. Table rows shall have the same number of columns (taking into account column spans)
+    status: covered
+    checks:
+      - UA-15-006
+  - vera: UA2:8.2.5.26-5
+    object: SETD
+    desc: When a table contains header cells, that table shall provide sufficient semantic information to allow accurate determination of which of its table header cells (structure element TH) pertain to other cells as specified in ISO 32000-2:2020, 14.8.5.7
+    status: covered
+    checks:
+      - UA-15-007
+    note: UA-15-007 verifies an association mechanism is present (Scope on every TH, or /Headers+/ID in use) and that data-cell /Headers references resolve; it does not replay the full per-cell resolution algorithm.
+  - vera: UA2:8.2.5.26-6
+    object: SETD
+    desc: When a table contains header cells, that table shall provide sufficient semantic information to allow accurate determination of which of its table header cells (structure element TH) pertain to other cells as specified in ISO 32000-2:2020, 14.8.5.7
+    status: covered
+    checks:
+      - UA-15-007
+    note: UA-15-007 verifies an association mechanism is present (Scope on every TH, or /Headers+/ID in use) and that data-cell /Headers references resolve; it does not replay the full per-cell resolution algorithm.
+  - vera: UA2:8.2.5.27-1
+    object: PDStructElem
+    desc: When present, the Caption element shall be the first or the last child of the structure element
+    status: covered
+    checks:
+      - UA-01-011
+  - vera: UA2:8.2.5.28.2-1
+    object: SEFigure
+    desc: 'A Figure structure element shall have at least one of the following properties: a) an alternate description (Alt property), as specified in ISO 32000-2:2020, 14.9.3; b) a replacement text (ActualText property) that represents the content enclosed by the Figure structure element'
+    status: covered
+    checks:
+      - UA-13-004
+  - vera: UA2:8.2.5.29-1
+    object: SEMathMLStructElem
+    desc: The math structure type shall occur only as a child of a Formula structure element
+    status: partial
+    checks:
+      - UA-17-015
+    note: UA-17-015 restricts where the math type may appear but does not flag corpus 8.2.5.29-t01-fail-a.
+  - vera: UA2:8.4.3-1
+    object: Glyph
+    desc: In all cases, where real content maps to Unicode PUA values, an ActualText or Alt entry shall be present
+    status: partial
+    checks:
+      - UA-01-020
+    note: 'UA-01-020 detects PUA via the glyphs /ToUnicode mapping and exempts content covered by /ActualText or /Alt (marked-content or structure element). Fixture-only (no corpus). Glyphs whose PUA value comes only from the embedded font cmap, with no /ToUnicode, are not classified -- that needs font-program glyph analysis.'
+  - vera: UA2:8.4.3-2
+    object: CosActualText
+    desc: The ActualText entry shall not contain any PUA values
+    status: covered
+    checks:
+      - UA-01-013
+  - vera: UA2:8.4.3-3
+    object: CosAlt
+    desc: The Alt entry shall not contain any PUA values
+    status: covered
+    checks:
+      - UA-01-013
+  - vera: UA2:8.4.4-1
+    object: PDDocument
+    desc: The default natural language for content and text strings shall be specified using the Lang entry, with a non-empty value, in the catalog dictionary
+    status: covered
+    checks:
+      - UA-11-001
+  - vera: UA2:8.4.4-2
+    object: CosLang
+    desc: If the Lang entry is present in the document's Catalog dictionary or in a structure element dictionary or property list, its value shall be a language identifier as described in ISO 32000-2:2020, 14.9.2. A language identifier shall be a Language-Tag as defined in RFC 3066, Tags for the Identification of Languages
+    status: partial
+    checks:
+      - UA-11-003
+    note: UA-11-003 validates RFC 3066 format of Catalog and structure-element /Lang, but not marked-content property-list /Lang (corpus 8.4.4-t02-fail-h/-i), which the model does not expose.
+  - vera: UA2:8.4.5.3.1-1
+    object: PDType0Font
+    desc: 'For any given composite (Type 0) font within a conforming file, the CIDSystemInfo entry in its CIDFont dictionary and its Encoding dictionary shall have the following relationship: - If the Encoding key in the Type 0 font dictionary has a value of Identity-H or Identity-V, then any values for the Registry, Ordering, and Supplement keys may be used in the CIDSystemInfo dictionary of the CIDFont. - Otherwise the corresponding values of the Registry and Ordering keys in both CIDSystemInfo dictionaries shall be identical, and the value of the Supplement key in the CIDSystemInfo dictionary of the CIDFont shall be less than or equal to the value of the Supplement key in the CIDSystemInfo dictionary of the CMap'
+    status: n/a
+    checks: []
+    note: Low-level composite-font CIDSystemInfo/Encoding mechanics; not an accessibility concern.
+  - vera: UA2:8.4.5.3.2-1
+    object: PDCIDFont
+    desc: All embedded Type 2 CIDFonts in the CIDFont dictionary shall contain a CIDToGIDMap entry that shall be a stream mapping from CIDs to glyph indices or the name Identity, as described in ISO 32000-2:2020, Table 115
+    status: partial
+    checks:
+      - UA-31-001
+    note: UA-31-001 validates CIDToGIDMap presence/form but misses the corpus 8.4.5.3.2-t01-fail-b/-c variants.
+  - vera: UA2:8.4.5.4-1
+    object: PDCMap
+    desc: All CMaps used within a file that conforms to PDF/UA-2, except those listed in ISO 32000-2:2020, Table 116, shall be embedded in that file, as described in ISO 32000-2:2020, 9.7.5
+    status: n/a
+    checks: []
+    note: Low-level CMap embedding mechanics (ISO 32000 font rendering); not an accessibility concern.
+  - vera: UA2:8.4.5.4-2
+    object: CMapFile
+    desc: For those CMaps that are embedded, the integer value of the WMode entry in the CMap dictionary shall be identical to the WMode value in the embedded CMap stream
+    status: n/a
+    checks: []
+    note: Low-level CMap WMode consistency; font-rendering mechanics, not accessibility.
+  - vera: UA2:8.4.5.4-3
+    object: PDReferencedCMap
+    desc: A CMap shall not reference any other CMap except those listed in ISO 32000-2:2020, 9.7.5.2 Table 116
+    status: n/a
+    checks: []
+    note: Low-level CMap reference mechanics; not an accessibility concern.
+  - vera: UA2:8.4.5.5.1-1
+    object: PDFont
+    desc: The font programs for all fonts used for rendering within a conforming file shall be embedded within that file, as defined in ISO 32000-2:2020, 9.9
+    status: partial
+    checks:
+      - UA-09-001
+    note: UA-09-001 reports non-embedded standard-14 fonts as a warning, not an error, so it does not hard-fail corpus 8.4.5.5.1-t01-fail-a.
+  - vera: UA2:8.4.5.5.1-2
+    object: Glyph
+    desc: Embedded fonts shall define all glyphs referenced for rendering within the conforming file. A font referenced solely in text rendering mode 3 is not rendered and is thus exempt from the requirements that impact the visual representation of the glyphs of a font. In all cases for TrueType fonts that are to be rendered, character codes shall be able to be mapped to glyphs in accordance with ISO 32000-2:2020, 9.6.5, without the use of a non-standard mapping chosen by the conforming processor
+    status: n/a
+    checks: []
+    note: Requires parsing font-program glyph tables (rendering-level); out of scope for the structural accessibility checker.
+  - vera: UA2:8.4.5.6-1
+    object: Glyph
+    desc: For every font embedded in a conforming file and referenced for rendering, the glyph width information in the font dictionary and in the embedded font program shall be consistent for every glyph
+    status: n/a
+    checks: []
+    note: Glyph-width consistency between font dict and font program; rendering-level, not accessibility.
+  - vera: UA2:8.4.5.7-1
+    object: TrueTypeFontProgram
+    desc: For all non-symbolic TrueType fonts used for rendering, the embedded TrueType font program shall contain at least Microsoft Unicode (3,1 – Platform ID=3, Encoding ID=1), or Macintosh Roman (1,0 – Platform ID=1, Encoding ID=0) 'cmap' subtable
+    status: n/a
+    checks: []
+    note: TrueType cmap-table internals; font-rendering mechanics, not accessibility.
+  - vera: UA2:8.4.5.7-2
+    object: PDTrueTypeFont
+    desc: All non-symbolic TrueType fonts shall have either MacRomanEncoding or WinAnsiEncoding as the value for the Encoding key in the Font dictionary or as the value for the BaseEncoding key in the dictionary which is the value of the Encoding key in the Font dictionary. In addition, no non-symbolic TrueType font shall define a Differences array unless all of the glyph names in the Differences array are listed in the Adobe Glyph List and, if the font program is embedded, it shall contain at least the Microsoft Unicode (3,1 – Platform ID = 3, Encoding ID = 1) encoding in the 'cmap' table
+    status: n/a
+    checks: []
+    note: TrueType encoding/cmap internals; font-rendering mechanics, not accessibility.
+  - vera: UA2:8.4.5.7-3
+    object: PDTrueTypeFont
+    desc: Symbolic TrueType fonts shall not contain an Encoding entry in the font dictionary
+    status: n/a
+    checks: []
+    note: Symbolic TrueType Encoding entry; font-rendering mechanics, not accessibility.
+  - vera: UA2:8.4.5.7-4
+    object: TrueTypeFontProgram
+    desc: The 'cmap' subtable in the embedded font program shall either contain the Microsoft Symbol (3,0 – Platform ID=3, Encoding ID=0) or the Mac Roman (1,0 – Platform ID=1, Encoding ID=1) encoding
+    status: n/a
+    checks: []
+    note: TrueType cmap-subtable internals; font-rendering mechanics, not accessibility.
+  - vera: UA2:8.4.5.8-1
+    object: Glyph
+    desc: The Font dictionary of all fonts shall define the map of all used character codes to Unicode values, either via a ToUnicode entry, or other mechanisms as defined in ISO 14289-2, 8.4.5.8
+    status: partial
+    checks:
+      - UA-10-001
+      - UA-10-002
+    note: 'Over-reports: the rule permits Unicode mapping via mechanisms other than /ToUnicode; UA-10-001/002 require /ToUnicode, so corpus 8.4.5.8-t01-pass-a is a false positive.'
+  - vera: UA2:8.4.5.8-2
+    object: Glyph
+    desc: If a ToUnicode CMap is present, the Unicode values it specifies shall all be greater than zero (0), but not equal to either U+FEFF or U+FFFE
+    status: covered
+    checks:
+      - UA-10-003
+  - vera: UA2:8.4.5.9-1
+    object: Glyph
+    desc: A file in conformance with PDF/UA-2 shall not contain a reference to the .notdef glyph from any of the text showing operators, regardless of text rendering mode, in any content stream
+    status: covered
+    checks:
+      - UA-10-004
+    note: 'UA-10-004 detects the Type0/Identity code-0 case (CID 0 = glyph 0), which the corpus 8.4.5.9-t01-fail-a exercises. Simple-font .notdef references need font-program glyph analysis and are not yet covered.'
+  - vera: UA2:8.6-1
+    object: CosTextString
+    desc: Text strings intended to be human readable shall not use the Unicode PUA
+    status: covered
+    checks:
+      - UA-01-019
+    note: 'UA-01-019 scans document info, outline titles, form-field names (T/TU), annotation contents and structure alternate text; the corpus 8.6-t01-fail-a (PUA in a widget /T) fails. No pass PDF in the corpus.'
+  - vera: UA2:8.7-1
+    object: PDOCConfig
+    desc: 'All optional content configuration dictionaries in the document, including the default optional content configuration dictionary, shall contain a Name entry (see ISO 32000-2:2020, Table 96) whose value is a non-empty text string when: a) a document contains a Configs entry in the OCProperties entry of the catalog dictionary (see ISO 32000-2:2020, Table 29), and b) the Configs entry contains at least one optional content configuration dictionary'
+    status: covered
+    checks:
+      - UA-20-003
+    note: 'UA-20-003 is spec-aware: unconditional for UA-1 (7.10-1), and for UA-2 requires /Name only when a /Configs array is present. Fixture-only (the corpus has 8.7-t02 for the AS rule, not 8.7-t01).'
+  - vera: UA2:8.7-2
+    object: PDOCConfig
+    desc: The AS key shall not appear in any optional content configuration dictionary
+    status: partial
+    checks:
+      - UA-20-002
+    note: Only the default /D configuration dictionary is inspected for /AS, not the /Configs array.
+  - vera: UA2:8.8-1
+    object: PDDestination
+    desc: All destinations whose target lies within the current document shall be structure destinations
+    status: covered
+    checks:
+      - UA-27-003
+  - vera: UA2:8.8-2
+    object: PDGoToAction
+    desc: All destinations whose target lies within the current document shall be structure destinations
+    status: covered
+    checks:
+      - UA-27-003
+  - vera: UA2:8.9.2.2-1
+    object: PDAnnot
+    desc: Annotations shall be artifacts, if the Invisible flag is set in accordance with ISO 32000-2:2020, Table 167
+    status: covered
+    checks:
+      - UA-28-020
+  - vera: UA2:8.9.2.2-2
+    object: PDAnnot
+    desc: Annotations shall be artifacts if the NoView flag is set and the ToggleNoView flag is not set in accordance with ISO 32000-2:2020, Table 167
+    status: covered
+    checks:
+      - UA-28-020
+  - vera: UA2:8.9.2.3-1
+    object: PDMarkupAnnot
+    desc: Markup annotations shall be enclosed within Annot structure elements
+    status: covered
+    checks:
+      - UA-28-015
+  - vera: UA2:8.9.2.3-2
+    object: PDMarkupAnnot
+    desc: When both RC and Contents entries are present for markup annotation, they shall be textually equivalent
+    status: covered
+    checks:
+      - UA-28-034
+    note: 'Fixture-only: no veraPDF corpus PDF for 8.9.2.3-2. Textual equivalence is compared after stripping the /RC XHTML markup and collapsing whitespace.'
+  - vera: UA2:8.9.2.4.7-1
+    object: PDRubberStampAnnot
+    desc: If the Name entry is insufficient to describe the intent of the stamp annotation, a Contents entry describing the author’s intent shall be provided
+    status: covered
+    checks:
+      - UA-28-021
+  - vera: UA2:8.9.2.4.8-1
+    object: PDInkAnnot
+    desc: A Contents entry describing the author’s intent shall be provided for Ink annotation
+    status: covered
+    checks:
+      - UA-28-011
+  - vera: UA2:8.9.2.4.9-1
+    object: PDPopupAnnot
+    desc: Popup annotations shall not be present in the structure tree
+    status: covered
+    checks:
+      - UA-28-017
+  - vera: UA2:8.9.2.4.10-1
+    object: PDFileAttachmentAnnot
+    desc: When a file attachment annotation references a file specification dictionary, the file specification dictionary shall include an AFRelationship entry
+    status: covered
+    checks:
+      - UA-28-024
+  - vera: UA2:8.9.2.4.11-1
+    object: PDSoundAnnot
+    desc: Sound annotation cannot be used when conforming to PDF/UA-2
+    status: covered
+    checks:
+      - UA-28-009
+  - vera: UA2:8.9.2.4.11-2
+    object: PDMovieAnnot
+    desc: Movie annotation cannot be used when conforming to PDF/UA-2
+    status: covered
+    checks:
+      - UA-28-009
+  - vera: UA2:8.9.2.4.12-1
+    object: PDScreenAnnot
+    desc: Screen annotations shall include a Contents entry
+    status: covered
+    checks:
+      - UA-28-011
+  - vera: UA2:8.9.2.4.13-1
+    object: PDWidgetAnnot
+    desc: A widget annotation of zero height and width shall be an artifact
+    status: covered
+    checks:
+      - UA-28-018
+  - vera: UA2:8.9.2.4.14-1
+    object: PDPrinterMarkAnnot
+    desc: A printer's mark annotation shall be an artifact
+    status: covered
+    checks:
+      - UA-28-006
+    note: UA-28-006 flags PrinterMark annotations that appear in the structure tree, enforcing their treatment as artifacts.
+  - vera: UA2:8.9.2.4.15-1
+    object: PDTrapNetAnnot
+    desc: Trap network annotations shall not be used in files conforming to PDF/UA-2
+    status: covered
+    checks:
+      - UA-28-009
+  - vera: UA2:8.9.2.4.16-1
+    object: PDWatermarkAnnot
+    desc: When used as real content, Watermark annotations shall be enclosed within Annot structure elements
+    status: covered
+    checks:
+      - UA-28-019
+  - vera: UA2:8.9.2.4.19-1
+    object: PD3DAnnot
+    desc: 3D annotation shall include alternate description in respective Contents entry
+    status: covered
+    checks:
+      - UA-28-011
+  - vera: UA2:8.9.2.4.19-2
+    object: PDRichMediaAnnot
+    desc: RichMedia annotation shall include alternate description in respective Contents entry
+    status: covered
+    checks:
+      - UA-28-011
+  - vera: UA2:8.9.3.3-1
+    object: PDPage
+    desc: Every page that includes an annotation shall contain a Tabs entry in its page dictionary in accordance with ISO 32000-2:2020, Table 31, and its value shall be A, W or S
+    status: covered
+    checks:
+      - UA-08-001
+  - vera: UA2:8.9.4.2-1
+    object: PDAnnot
+    desc: Where an annotation has a Contents entry and the directly enclosing structure element has an Alt entry, the values of Alt and Contents shall be identical
+    status: covered
+    checks:
+      - UA-28-031
+    note: 'Fixture-only: no veraPDF corpus file for clause 8.9.4.2.'
+  - vera: UA2:8.10.1-1
+    object: PDWidgetAnnot
+    desc: Each widget annotation shall be enclosed by a Form structure element unless the widget annotation is an artifact
+    status: partial
+    checks:
+      - UA-28-007
+    note: UA-28-007 checks widgets are referenced from the structure tree via /StructParent; it does not verify enclosure specifically within a Form structure element.
+  - vera: UA2:8.10.1-2
+    object: SEForm
+    desc: A Form structure element shall contain at most one widget annotation
+    status: covered
+    checks:
+      - UA-28-027
+  - vera: UA2:8.10.1-3
+    object: PDAcroForm
+    desc: XFA forms shall not be present
+    status: covered
+    checks:
+      - UA-28-010
+  - vera: UA2:8.10.2.3-1
+    object: PDWidgetAnnot
+    desc: If a label for a widget annotation is not present, a Contents entry shall be provided to supply description and context for the widget
+    status: covered
+    checks:
+      - UA-28-035
+  - vera: UA2:8.10.2.3-2
+    object: PDWidgetAnnot
+    desc: If an additional action (AA) entry is present in a widget annotation dictionary, the respective widget's Contents entry shall be present
+    status: covered
+    checks:
+      - UA-28-029
+    note: 'Fixture-only: the veraPDF corpus has no 8.10.2.3-t02 (AA) file, only -t01 (Lbl, rule -1).'
+  - vera: UA2:8.10.3.3-1
+    object: PDTextField
+    desc: For text fields, when an RV entry is present a V entry shall also be present, and they shall be textually equivalent
+    status: covered
+    checks:
+      - UA-28-033
+    note: 'Fixture-only: no veraPDF corpus PDF for 8.10.3.3. Textual equivalence is compared after stripping the /RV XHTML markup and collapsing whitespace.'
+  - vera: UA2:8.10.3.5-1
+    object: SEGraphicContentItem
+    desc: If a portion of the appearance of a signature is represented by a graphic, alternative text shall be provided for that graphic
+    status: covered
+    checks:
+      - UA-28-036
+    note: 'Fixture-only: no veraPDF corpus PDF for 8.10.3.5. A signature graphic is modelled as a Figure inside the Form structure element that encloses a /FT /Sig widget; it must carry /Alt.'
+  - vera: UA2:8.11.1-1
+    object: MainXMPPackage
+    desc: The Metadata stream as specified in ISO 32000-2:2020, 14.3 in the document catalog dictionary shall contain a dc:title entry
+    status: covered
+    checks:
+      - UA-06-004
+  - vera: UA2:8.11.1-2
+    object: PDDocument
+    desc: The Catalog dictionary of a conforming file shall contain the Metadata key whose value is a metadata stream as defined in ISO 32000-2:2020, 14.3. The metadata stream dictionary shall contain entry Type with value /Metadata and entry Subtype with value /XML
+    status: partial
+    checks:
+      - UA-06-003
+    note: Presence of the /Metadata stream is enforced; the Type=/Metadata and Subtype=/XML sub-entries are not verified.
+  - vera: UA2:8.11.2-1
+    object: CosDocument
+    desc: The ViewerPreferences dictionary of the document catalog dictionary shall be present and shall contain at least the DisplayDocTitle key with a value of true, as described in ISO 32000-2:2020, Table 147
+    status: covered
+    checks:
+      - UA-07-001
+  - vera: UA2:8.14.1-1
+    object: CosFileSpecification
+    desc: The Desc entry shall be present on all file specification dictionaries present in the EmbeddedFiles name tree of a conforming document
+    status: covered
+    checks:
+      - UA-12-002
