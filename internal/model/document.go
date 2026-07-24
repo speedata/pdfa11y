@@ -851,12 +851,21 @@ type Font struct {
 	ToUnicodeMappings map[uint32]string
 
 	// ToUnicodeCodeBytes is the byte width declared by the
-	// /ToUnicode CMap's begincodespacerange (1 or 2). Used by the
-	// content-stream walker to split Tj/TJ bytes into the right
-	// number of codes per glyph. Zero when no codespace was
-	// declared; the walker then falls back to 2 for Type0 fonts
-	// and 1 for everything else.
+	// /ToUnicode CMap's begincodespacerange (1 or 2). It records the
+	// extraction CMap's own codespace and is independent of how the
+	// content stream is tokenised (see EncodingCodeBytes). Zero when
+	// no codespace was declared.
 	ToUnicodeCodeBytes int
+
+	// EncodingCodeBytes is the number of bytes per code in the
+	// content stream, as fixed by the font's /Encoding: 1 for simple
+	// fonts, and for Type0 the /Encoding CMap's codespace width
+	// (2 for Identity-H/V and the predefined Adobe CMaps; an embedded
+	// CMap declares its own). This -- not ToUnicodeCodeBytes -- is
+	// what the walker uses to split Tj/TJ bytes into codes. The two
+	// are independent: a font may render two-byte codes yet ship a
+	// /ToUnicode whose codespace is declared one-byte.
+	EncodingCodeBytes int
 
 	// CIDSubtype is the /Subtype of the descendant CIDFont for
 	// Type0 composite fonts: "CIDFontType0" (Adobe CFF source) or

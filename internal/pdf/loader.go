@@ -1177,6 +1177,7 @@ func (d *document) Fonts() ([]model.Font, error) {
 			HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
 			ToUnicodeMappings:      mappings,
 			ToUnicodeCodeBytes:     codeBytes,
+			EncodingCodeBytes:      d.encodingCodeBytes(fd, subtype),
 			CIDSubtype:             cidSubtype,
 			CIDToGIDMap:            cidToGID,
 		})
