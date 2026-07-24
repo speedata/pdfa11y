@@ -487,14 +487,15 @@ func decodeTJText(op contentstream.Op, codeBytes int, mappings map[uint32]string
 // codeBytesFor picks the right code width for a Tf-referenced font.
 //
 // Simple fonts (Type1, TrueType, MMType1, Type3) always emit one
-// byte per glyph in the Tj/TJ stream regardless of what their
-// /ToUnicode codespace declares -- producers routinely declare a
-// permissive <0000>-<FFFF> codespace on a 1-byte CMap, which means
-// the codespace alone is not a reliable signal.
+// byte per glyph in the Tj/TJ stream.
 //
-// For Type0 composite fonts the codespace IS authoritative
-// (Identity-H is two-byte; custom CMaps may declare one-byte).
-// Default to 2 when Type0 has no /ToUnicode at all.
+// For Type0 composite fonts the width is set by the /Encoding CMap
+// (Identity-H/V and the predefined Adobe CMaps are two-byte; an
+// embedded CMap declares its own), carried on the font as
+// EncodingCodeBytes. This is deliberately independent of /ToUnicode:
+// the extraction CMap's codespace may legally differ, and using it to
+// tokenise the content stream manufactures codes that were never
+// rendered. Default to 2 for a Type0 whose encoding width is unknown.
 //
 // resolved=false (unknown font dict) collapses to the 1-byte
 // fallback so we never accidentally pack ASCII text as 2-byte CIDs.
@@ -505,8 +506,8 @@ func codeBytesFor(f model.Font, resolved bool) int {
 	if f.Subtype != "Type0" {
 		return 1
 	}
-	if f.ToUnicodeCodeBytes > 0 {
-		return f.ToUnicodeCodeBytes
+	if f.EncodingCodeBytes > 0 {
+		return f.EncodingCodeBytes
 	}
 	return 2
 }
@@ -802,9 +803,36 @@ func (d *document) fontFromDict(fd *pdd.Dict) model.Font {
 		HasUnicodeMapping:      hasToU || hasDeterministicUnicodeMapping(subtype, encName, hasDiff, isSym),
 		ToUnicodeMappings:      mappings,
 		ToUnicodeCodeBytes:     codeBytes,
+		EncodingCodeBytes:      d.encodingCodeBytes(fd, subtype),
 		CIDSubtype:             cidSubtype,
 		CIDToGIDMap:            cidToGID,
 	}
+}
+
+// encodingCodeBytes reports how many bytes make up one code in the
+// content stream for this font, as fixed by its /Encoding. Simple
+// fonts are one byte. Composite (Type0) fonts take their width from
+// the /Encoding CMap: Identity-H/V and the predefined Adobe CMaps are
+// two-byte, while an embedded CMap declares its own codespace. This is
+// independent of /ToUnicode and is what the walker must use to split
+// show strings into codes.
+func (d *document) encodingCodeBytes(fd *pdd.Dict, subtype string) int {
+	if subtype != "Type0" {
+		return 1
+	}
+	if enc, ok := fd.Get("Encoding"); ok {
+		if _, isName := enc.(pdd.Name); !isName {
+			// Embedded CMap stream: use its declared codespace width.
+			if body, err := d.r.DecodeStream(enc); err == nil {
+				if cb := parseToUnicode(body).CodeBytes; cb > 0 {
+					return cb
+				}
+			}
+		}
+	}
+	// Identity-H/V, a predefined CMap, or an unreadable embedded CMap:
+	// composite fonts are two-byte.
+	return 2
 }
 
 // parseToUnicodeFromFont decodes the font's /ToUnicode stream (when
