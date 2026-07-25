@@ -42,3 +42,24 @@ func TestToUnicodeCoverageEncodingWidth(t *testing.T) {
 		})
 	}
 }
+
+// TestToUnicodeCoverageFontScopeAcrossQQ locks the graphics-state scope of the
+// text-state font: a Tf inside a q/Q pair must not stay active after the Q
+// (ISO 32000-1 §9.3). In the fixture, F0 renders 'A' and 'Z' and F1 renders
+// 'B'; each /ToUnicode covers exactly what its font shows, so the file is
+// clean. The 'Z' is shown after the Q with no new Tf, i.e. with the restored
+// F0. A walker that lets F1 leak past the Q attributes 0x005A to F1 -- whose
+// /ToUnicode does not map it -- and reports a code F1 never rendered.
+func TestToUnicodeCoverageFontScopeAcrossQQ(t *testing.T) {
+	const fixture = "testdata/font-scope-qq.pdf"
+	doc, err := pdf.LoadFile(fixture)
+	if err != nil {
+		t.Fatalf("load fixture: %v", err)
+	}
+	check := fonts.ToUnicodeCoverage{}
+	result := engine.Result{Check: check, Findings: check.Run(doc)}
+	if got := result.State(); got != engine.VerdictPass {
+		t.Fatalf("State() = %v, want %v -- a Tf inside q/Q must not leak past the Q (findings: %+v)",
+			got, engine.VerdictPass, result.Findings)
+	}
+}
