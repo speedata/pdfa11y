@@ -171,6 +171,19 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport, mcidLang m
 	// readable text for MCIDText. nil when the font has no /ToUnicode.
 	var currentFontMappings map[uint32]string
 
+	// Text state saved by q and restored by Q. The font selected by Tf is
+	// part of the graphics state (ISO 32000-1 §9.3), so a Tf inside a
+	// q/Q pair must not leak out of it: text shown after the Q renders
+	// with whatever font was selected before the q. Without this, show
+	// strings are attributed to the wrong font and their codes are
+	// reported as "used" by a font that never rendered them.
+	type textState struct {
+		fontKey   string
+		codeBytes int
+		mappings  map[uint32]string
+	}
+	var gsStack []textState
+
 	// Stack of MCIDs active on the marked-content stack. -1 entries are
 	// BMC frames or BDC frames without an /MCID property — text inside
 	// them is still tagged but contributes to no MCIDBox.
@@ -206,6 +219,22 @@ func (d *document) scanPageContent(p pageInfo, rep *model.PageReport, mcidLang m
 			return err
 		}
 		switch op.Operator {
+		case "q":
+			gsStack = append(gsStack, textState{
+				fontKey:   currentFontKey,
+				codeBytes: currentFontCodeBytes,
+				mappings:  currentFontMappings,
+			})
+		case "Q":
+			// A stray Q with no matching q is malformed; ignore it
+			// rather than dropping the current state.
+			if n := len(gsStack); n > 0 {
+				st := gsStack[n-1]
+				gsStack = gsStack[:n-1]
+				currentFontKey = st.fontKey
+				currentFontCodeBytes = st.codeBytes
+				currentFontMappings = st.mappings
+			}
 		case "BMC":
 			mcDepth++
 			mcidStack = append(mcidStack, -1)
