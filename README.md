@@ -135,6 +135,20 @@ pdfa11y --list-rules
 With `--strict`, warning-severity findings count as errors and feed
 into the exit code accordingly.
 
+### GitHub Actions
+
+```yaml
+- name: Install pdfa11y
+  run: go install github.com/speedata/pdfa11y/cmd/pdfa11y@latest
+
+- name: Check PDF/UA
+  run: pdfa11y --format github out/*.pdf
+```
+
+Findings show up as annotations on the run, the job summary lists
+every document with its verdict, and the step fails when a document
+does not conform.
+
 ## Implemented checks
 
 `pdfa11y --list-rules` prints the authoritative, version-specific
@@ -185,6 +199,11 @@ stream, not fonts declared in `/Resources` and never used.
 - `pdf`: PDF/UA-1 accessibility report (title page + per-document
   findings, structurally tagged) rendered via boxesandglue/bagme.
   The output PDF itself passes pdfa11y's own checks.
+- `github`: for GitHub Actions. Prints one workflow command
+  (`::error`, `::warning`, `::notice`) per finding, which the runner
+  shows as annotations on the workflow run. When
+  `$GITHUB_STEP_SUMMARY` is set, a Markdown overview of all
+  documents is appended to the job summary as well.
 
 The JSON schema is stable enough to consume from Go programs (the engine
 package exposes `MarshalJSON`/`UnmarshalJSON` for `Verdict`, `Spec` and

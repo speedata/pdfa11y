@@ -15,6 +15,7 @@ import (
 	"github.com/speedata/pdfa11y/internal/model"
 	"github.com/speedata/pdfa11y/internal/pdf"
 	"github.com/speedata/pdfa11y/internal/pdfua"
+	"github.com/speedata/pdfa11y/internal/report/github"
 	"github.com/speedata/pdfa11y/internal/report/html"
 	jsonrep "github.com/speedata/pdfa11y/internal/report/json"
 	pdfrep "github.com/speedata/pdfa11y/internal/report/pdf"
@@ -42,7 +43,7 @@ func run() int {
 
 	op := optionparser.NewOptionParser()
 	op.Banner = "Usage: pdfa11y [options] FILE [FILE ...]"
-	op.On("--format FORMAT", "output format: terminal (default), json, jsonl, html, pdf", &format)
+	op.On("--format FORMAT", "output format: terminal (default), json, jsonl, html, pdf, github", &format)
 	op.On("--spec SPEC", "PDF/UA spec: pdfua1, pdfua2, auto (default)", &specFlag)
 	op.On("--wcag", "show WCAG mapping in the report", &showWCAG)
 	op.On("--show-na", "show not-applicable checks in the terminal report (hidden by default)", &showNA)
@@ -80,9 +81,9 @@ func run() int {
 	}
 
 	switch format {
-	case "terminal", "json", "jsonl", "html", "pdf":
+	case "terminal", "json", "jsonl", "html", "pdf", "github":
 	default:
-		fmt.Fprintf(os.Stderr, "pdfa11y: unknown --format %q (use terminal, json, jsonl, html, pdf)\n", format)
+		fmt.Fprintf(os.Stderr, "pdfa11y: unknown --format %q (use terminal, json, jsonl, html, pdf, github)\n", format)
 		return 2
 	}
 
@@ -91,11 +92,16 @@ func run() int {
 	var jsonDocs []jsonrep.Document // accumulated only for --format json
 	var htmlDocs []html.Document    // accumulated only for --format html
 	var pdfDocs []pdfrep.Document   // accumulated only for --format pdf
+	var ghDocs []github.Document    // accumulated only for --format github (job summary)
 
 	for _, path := range op.Extra {
 		doc, err := pdf.LoadFile(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "pdfa11y: %s: %v\n", path, err)
+			if format == "github" {
+				github.WriteLoadError(os.Stdout, path, err)
+				ghDocs = append(ghDocs, github.Document{Path: path, Err: err})
+			}
 			anyError = true
 			continue
 		}
@@ -120,6 +126,9 @@ func run() int {
 			htmlDocs = append(htmlDocs, html.Build(path, results))
 		case "pdf":
 			pdfDocs = append(pdfDocs, pdfrep.Build(path, results))
+		case "github":
+			github.Write(os.Stdout, path, results)
+			ghDocs = append(ghDocs, github.Document{Path: path, Results: results})
 		}
 
 		if !engine.Summarize(results).Conforming() {
@@ -146,6 +155,13 @@ func run() int {
 		}
 	}
 
+	if format == "github" {
+		if err := writeStepSummary(ghDocs); err != nil {
+			fmt.Fprintln(os.Stderr, "pdfa11y:", err)
+			return 2
+		}
+	}
+
 	switch {
 	case anyError:
 		return 2
@@ -154,6 +170,22 @@ func run() int {
 	default:
 		return 0
 	}
+}
+
+// writeStepSummary appends the Markdown job summary to the file named by
+// $GITHUB_STEP_SUMMARY. Outside GitHub Actions the variable is unset and
+// nothing is written.
+func writeStepSummary(docs []github.Document) error {
+	name := os.Getenv("GITHUB_STEP_SUMMARY")
+	if name == "" {
+		return nil
+	}
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	github.WriteSummary(f, docs)
+	return f.Close()
 }
 
 // specMode reflects what the user asked for via --spec; the actual
