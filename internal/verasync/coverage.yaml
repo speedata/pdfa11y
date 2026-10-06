@@ -710,10 +710,10 @@ rules:
   - vera: UA2:8.2.4-1
     object: SENonStandard
     desc: 'All structure elements shall belong to, or be role mapped to, at least one of the following namespaces specified in ISO 32000-2:2020, 14.8.6: — the PDF 1.7 namespace; — the PDF 2.0 namespace; — the MathML namespace'
-    status: partial
+    status: covered
     checks:
       - UA-31-008
-    note: UA-31-008 enforces role-mapping of custom types to standard types; it does not fully validate the PDF 1.7 / PDF 2.0 / MathML namespace membership rules of ISO 32000-2 14.8.6.
+    note: UA-31-008 resolves the classic /RoleMap for elements in the default namespace and the namespace /RoleMapNS chain (ISO 32000-2 14.8.6.2) for elements in an explicit namespace; MathML needs no mapping. A /RoleMap target that is an empty name counts as unmapped (corpus t01-fail-c).
   - vera: UA2:8.2.4-2
     object: PDStructElem
     desc: A circular mapping shall not exist

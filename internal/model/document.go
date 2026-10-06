@@ -893,9 +893,21 @@ type Font struct {
 // is not yet applied; Type returns the raw /S value. Resolving role
 // maps is a planned refinement.
 type StructElement interface {
-	// Type is the value of /S, e.g. "Document", "Sect", "P", "H1",
-	// "Figure", "Table". Empty if /S is absent (rare and malformed).
+	// Type is the value of /S after role mapping, e.g. "Document",
+	// "Sect", "P", "H1", "Figure", "Table". Empty if /S is absent (rare
+	// and malformed) or mapped to an empty name.
 	Type() string
+
+	// RawType is the value of /S as written, before role mapping.
+	RawType() string
+
+	// BelongsToStandardNamespace reports whether the element is in the
+	// PDF 1.7, PDF 2.0 or MathML namespace in the sense of ISO 32000-2
+	// §14.8.6.2: it has no namespace (default namespace), names one of
+	// them via /NS, or its namespace's /RoleMapNS maps its type into
+	// one of them, directly or transitively. The classic /RoleMap does
+	// not count for elements in an explicit namespace.
+	BelongsToStandardNamespace() bool
 
 	// Children returns the StructElement children of this node, with
 	// indirect references resolved. MCR / OBJR / integer entries in

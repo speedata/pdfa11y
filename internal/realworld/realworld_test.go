@@ -58,3 +58,36 @@ func TestGluPDFUADemo(t *testing.T) {
 			r.Check.ID(), r.Check.Title(), r.Findings)
 	}
 }
+
+// TestGluPDFUA2Namespaces runs the PDF/UA-2 check set against a glu
+// document rendered with --format PDF/UA-2. glu writes most structure
+// elements in the XHTML namespace (h1, p, li, table, ...) and maps
+// them to PDF 2.0 types via the namespace's /RoleMapNS, while some
+// (L, LBody) sit directly in the PDF 2.0 namespace.
+//
+// Besides "no failures", the test asserts that the list and table
+// checks actually ran: before StructElement.Type() resolved
+// /RoleMapNS, the XHTML elements kept their raw names, so the table
+// checks found no Table (vacuous N/A) and the list checks rejected
+// the li children of L.
+func TestGluPDFUA2Namespaces(t *testing.T) {
+	doc, err := pdf.LoadFile("testdata/glu-pdfua2-namespaces.pdf")
+	if err != nil {
+		t.Fatalf("load fixture: %v", err)
+	}
+	mustApply := map[string]bool{
+		"UA-15-003": true, "UA-15-004": true, "UA-15-006": true,
+		"UA-16-001": true, "UA-16-002": true, "UA-16-004": true,
+	}
+	for _, r := range engine.Run(doc, engine.ForSpec(engine.SpecPDFUA2)) {
+		if !r.Passed() {
+			t.Errorf("%s (%s) failed unexpectedly on a conforming document\n  findings: %+v",
+				r.Check.ID(), r.Check.Title(), r.Findings)
+			continue
+		}
+		if mustApply[r.Check.ID()] && r.State() == engine.VerdictNA {
+			t.Errorf("%s (%s) is N/A: namespaced structure types were not resolved\n  findings: %+v",
+				r.Check.ID(), r.Check.Title(), r.Findings)
+		}
+	}
+}

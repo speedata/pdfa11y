@@ -121,3 +121,36 @@ func TestRoleMap_MappedCustomTagPasses(t *testing.T) {
 			result.State(), result.Findings)
 	}
 }
+
+// TestRoleMap_ForeignNamespace covers elements in an explicit
+// non-standard namespace: a div that the XHTML namespace's /RoleMapNS
+// maps to Div passes, as does a MathML math element. A blink element
+// without a /RoleMapNS entry fails even though the classic /RoleMap
+// maps it, since /RoleMap does not apply to elements in an explicit
+// namespace (ISO 32000-2 §14.8.6.2).
+func TestRoleMap_ForeignNamespace(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		want    engine.Verdict
+	}{
+		{"testdata/foreign-ns-mapped.pdf", engine.VerdictPass},
+		{"testdata/foreign-ns-unmapped.pdf", engine.VerdictFail},
+	} {
+		t.Run(tc.fixture, func(t *testing.T) {
+			doc, err := pdf.LoadFile(tc.fixture)
+			if err != nil {
+				t.Fatalf("load: %v", err)
+			}
+			check := structure.RoleMap{}
+			result := engine.Result{Check: check, Findings: check.Run(doc)}
+			if result.State() != tc.want {
+				t.Fatalf("State() = %v, want %v (findings: %+v)", result.State(), tc.want, result.Findings)
+			}
+			if tc.want == engine.VerdictFail {
+				if len(result.Findings) != 1 || !strings.Contains(result.Findings[0].Message, `"blink"`) {
+					t.Errorf("want one finding about blink, got %+v", result.Findings)
+				}
+			}
+		})
+	}
+}

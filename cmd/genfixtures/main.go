@@ -1170,6 +1170,16 @@ func run() error {
 		"http://iso.org/pdf/ssn"); err != nil {
 		return err
 	}
+	// UA-31-008: elements in an explicit non-standard namespace must be
+	// role-mapped into a standard namespace via /RoleMapNS.
+	if err := withForeignNamespaceUA2(
+		"internal/checks/structure/testdata/foreign-ns-mapped.pdf", false); err != nil {
+		return err
+	}
+	if err := withForeignNamespaceUA2(
+		"internal/checks/structure/testdata/foreign-ns-unmapped.pdf", true); err != nil {
+		return err
+	}
 	// PDF/UA-2 broadens the allowed set to S, A, W. Two fixtures
 	// drive the UA-2 branch of the check; both pass under UA-2 but
 	// would fail under UA-1.
@@ -3373,6 +3383,70 @@ func withDocumentNamespaceUA2(dst, nsURI string) error {
 		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
 	}
 	buf.WriteString("trailer\n<< /Size 8 /Root 1 0 R >>\n")
+	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
+
+	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", dst)
+	return nil
+}
+
+// withForeignNamespaceUA2 writes a minimal PDF/UA-2 document whose
+// Document (PDF 2.0 namespace) holds a div in the XHTML namespace,
+// role-mapped to Div via the namespace's /RoleMapNS, and a math element
+// in the MathML namespace, which needs no mapping. With unmapped set it
+// adds a blink element in the XHTML namespace that has no /RoleMapNS
+// entry -- only a classic /RoleMap one, which does not apply to
+// elements in an explicit namespace -- so UA-31-008 fails.
+func withForeignNamespaceUA2(dst string, unmapped bool) error {
+	xmp := []byte(`<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+        xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">
+      <pdfuaid:part>2</pdfuaid:part>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`)
+
+	kids := "[6 0 R 7 0 R]"
+	if unmapped {
+		kids = "[6 0 R 7 0 R 8 0 R]"
+	}
+	objs := []string{
+		"<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R /MarkInfo << /Marked true >> /Metadata 12 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>",
+		"<< /Type /StructTreeRoot /K 5 0 R /ParentTree << /Nums [] >> /Namespaces [9 0 R 10 0 R 11 0 R] /RoleMap << /blink /Span >> >>",
+		"<< /Type /StructElem /S /Document /P 4 0 R /NS 9 0 R /K " + kids + " >>",
+		"<< /Type /StructElem /S /div /P 5 0 R /NS 10 0 R >>",
+		"<< /Type /StructElem /S /math /P 5 0 R /NS 11 0 R >>",
+		"<< /Type /StructElem /S /blink /P 5 0 R /NS 10 0 R >>",
+		"<< /Type /Namespace /NS (http://iso.org/pdf2/ssn) >>",
+		"<< /Type /Namespace /NS (http://www.w3.org/1999/xhtml) /RoleMapNS << /div [/Div 9 0 R] >> >>",
+		"<< /Type /Namespace /NS (http://www.w3.org/1998/Math/MathML) >>",
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-2.0\n%\xff\xff\xff\xff\n")
+	var offsets []int
+	for i, body := range objs {
+		offsets = append(offsets, buf.Len())
+		fmt.Fprintf(&buf, "%d 0 obj\n%s\nendobj\n", i+1, body)
+	}
+	offsets = append(offsets, buf.Len())
+	fmt.Fprintf(&buf, "%d 0 obj\n<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n", len(objs)+1, len(xmp))
+	buf.Write(xmp)
+	buf.WriteString("\nendstream\nendobj\n")
+
+	xrefOff := buf.Len()
+	fmt.Fprintf(&buf, "xref\n0 %d\n0000000000 65535 f \n", len(offsets)+1)
+	for _, o := range offsets {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", o)
+	}
+	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 1 0 R >>\n", len(offsets)+1)
 	fmt.Fprintf(&buf, "startxref\n%d\n%%%%EOF\n", xrefOff)
 
 	if err := os.WriteFile(dst, buf.Bytes(), 0o644); err != nil {

@@ -8,22 +8,20 @@ import (
 	"github.com/speedata/pdfa11y/internal/model"
 )
 
-// RoleMap fails when the structure tree contains a sui-generis
-// (custom) structure type that is neither one of the standard PDF
-// structure types nor declared in /RoleMap on StructTreeRoot. Without
-// a mapping, assistive technology has no way to know what role the
-// element plays -- "FirstParagraph", "BoxedText", "MyCallout" and
-// the like are meaningful only to the producer.
+// RoleMap fails when the structure tree contains a structure type that
+// does not resolve to a standard type:
 //
-// Namespace-aware: elements that declare a non-default namespace
-// via /NS (or inherit one through the /P chain) live in that
-// namespace's type system, not the PDF default. ISO 32000-2
-// §14.8.6.3 registers the W3C MathML namespace explicitly; tags
-// like 'math', 'mi', 'mo' inside it are standard MathML, not
-// custom PDF tags, and do not require /RoleMap. Same logic applies
-// to any other registered namespace (LaTeX-project, custom XML
-// vocabularies, etc.) -- the check only fires in the default PDF
-// namespace, where ISO 32000 §14.8.4 defines the standard types.
+//   - in the default PDF namespace, a sui-generis (custom) type that is
+//     neither one of the standard PDF structure types nor mapped to one
+//     via /RoleMap -- "FirstParagraph", "BoxedText", "MyCallout" and the
+//     like are meaningful only to the producer. A /RoleMap entry whose
+//     target is an empty name counts as unmapped.
+//   - in any other explicit namespace (ISO 32000-2 §14.8.6.2), a type
+//     that the namespace's /RoleMapNS does not map, directly or
+//     transitively, into the PDF 1.7, PDF 2.0 or MathML namespace. The
+//     classic /RoleMap does not apply to elements in an explicit
+//     namespace. MathML types are standard in their own namespace
+//     (ISO 32000-2 §14.8.6.3) and need no mapping.
 //
 // One finding per unique unmapped type, with the first occurrence's
 // location and an occurrence count. Reporting every instance would
@@ -38,13 +36,15 @@ func (RoleMap) Severity() engine.Severity { return engine.SeverityError }
 func (RoleMap) Spec() engine.Spec         { return engine.SpecBoth }
 func (RoleMap) WCAG() []string            { return []string{"1.3.1"} }
 func (RoleMap) Description() string {
-	return "PDF/UA-1 §7.1 (PDF/UA-2 §8.2.4) requires every structure element type to be either a standard PDF structure type or mapped to one via the /RoleMap entry on StructTreeRoot. Custom names that survive role-map resolution are opaque to assistive technology."
+	return "PDF/UA-1 §7.1 (PDF/UA-2 §8.2.4) requires every structure element type to be either a standard PDF structure type or mapped to one: via the /RoleMap entry on StructTreeRoot, or for an element in an explicit namespace via that namespace's /RoleMapNS. Custom names that survive role-map resolution are opaque to assistive technology."
 }
 
 type occurrence struct {
-	path  string
-	page  int
-	count int
+	message string
+	hint    string
+	path    string
+	page    int
+	count   int
 }
 
 func (c RoleMap) Run(doc model.Document) []engine.Finding {
@@ -67,18 +67,18 @@ func (c RoleMap) Run(doc model.Document) []engine.Finding {
 	seen := map[string]*occurrence{}
 	c.walk(root, "/"+root.Type(), seen)
 
-	// Stable order: by type name. Without this, map iteration would
-	// shuffle findings between runs and break golden-file tests.
-	names := make([]string, 0, len(seen))
-	for n := range seen {
-		names = append(names, n)
+	// Stable order: by key. Without this, map iteration would shuffle
+	// findings between runs and break golden-file tests.
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
 	}
-	sort.Strings(names)
+	sort.Strings(keys)
 
 	var findings []engine.Finding
-	for _, name := range names {
-		u := seen[name]
-		msg := fmt.Sprintf("structure type %q is not a standard PDF tag and is not declared in /RoleMap", name)
+	for _, k := range keys {
+		u := seen[k]
+		msg := u.message
 		if u.count > 1 {
 			msg += fmt.Sprintf(" (used %d times; first occurrence reported)", u.count)
 		}
@@ -86,7 +86,7 @@ func (c RoleMap) Run(doc model.Document) []engine.Finding {
 			CheckID:  c.ID(),
 			Severity: engine.SeverityError,
 			Message:  msg,
-			Hint:     fmt.Sprintf("Add the mapping to the document's StructTreeRoot, e.g. /RoleMap << /%s /P >>; pick the closest standard type for this content.", name),
+			Hint:     u.hint,
 			Location: &engine.Location{Page: u.page, StructPath: u.path},
 		})
 	}
@@ -94,17 +94,46 @@ func (c RoleMap) Run(doc model.Document) []engine.Finding {
 }
 
 func (c RoleMap) walk(elem model.StructElement, path string, seen map[string]*occurrence) {
-	t := elem.Type()
-	if t != "" && inDefaultPDFNamespace(elem) && !standardStructType(t) {
-		if u, ok := seen[t]; ok {
+	if key, msg, hint := c.unmapped(elem); key != "" {
+		if u, ok := seen[key]; ok {
 			u.count++
 		} else {
-			seen[t] = &occurrence{path: path, page: elem.Page(), count: 1}
+			seen[key] = &occurrence{message: msg, hint: hint, path: path, page: elem.Page(), count: 1}
 		}
 	}
 	for _, child := range elem.Children() {
 		c.walk(child, path+"/"+child.Type(), seen)
 	}
+}
+
+// unmapped returns a dedup key, message and hint when elem's type does
+// not resolve to a standard type, or an empty key when it does.
+func (c RoleMap) unmapped(elem model.StructElement) (key, msg, hint string) {
+	raw := elem.RawType()
+	if raw == "" {
+		return "", "", ""
+	}
+	if !elem.BelongsToStandardNamespace() {
+		ns := elem.Namespace()
+		return ns + " " + raw,
+			fmt.Sprintf("structure type %q in namespace %s is not role-mapped into the PDF 1.7, PDF 2.0 or MathML namespace", raw, ns),
+			fmt.Sprintf("Add /%s to the /RoleMapNS of the namespace dictionary for %s, e.g. /%s [/P <PDF 2.0 namespace>]; pick the closest standard type for this content.", raw, ns, raw)
+	}
+	if !inDefaultPDFNamespace(elem) {
+		return "", "", ""
+	}
+	t := elem.Type()
+	switch {
+	case t == "":
+		return raw,
+			fmt.Sprintf("structure type %q is role-mapped to an empty name in /RoleMap", raw),
+			fmt.Sprintf("Map /%s to a standard structure type in the document's /RoleMap, e.g. /RoleMap << /%s /P >>.", raw, raw)
+	case !standardStructType(t):
+		return t,
+			fmt.Sprintf("structure type %q is not a standard PDF tag and is not declared in /RoleMap", t),
+			fmt.Sprintf("Add the mapping to the document's StructTreeRoot, e.g. /RoleMap << /%s /P >>; pick the closest standard type for this content.", t)
+	}
+	return "", "", ""
 }
 
 // inDefaultPDFNamespace reports whether elem's namespace is the

@@ -59,11 +59,25 @@ type document struct {
 	cachedClassMapKnown bool                  // distinguishes "not resolved yet" from "resolved, absent"
 	parentTreeMap       map[int]pdd.Object    // /StructParent key -> ParentTree value, lazily built
 	parentTreeLoaded    bool                  // tracks parentTree() cache
+	// nsRoleMap maps a namespace URI to its /RoleMapNS; populated by
+	// loadRoleMap, nil when no namespace declares one.
+	nsRoleMap map[string]map[string][]model.RoleTarget
 }
 
 // loadRoleMap reads StructTreeRoot/RoleMap and caches custom-to-standard
-// structure-type name mappings.
+// structure-type name mappings, plus the PDF 2.0 /RoleMapNS maps of the
+// declared namespaces.
 func (d *document) loadRoleMap() {
+	for _, ns := range d.Namespaces() {
+		if len(ns.RoleMapNS) == 0 {
+			continue
+		}
+		if d.nsRoleMap == nil {
+			d.nsRoleMap = map[string]map[string][]model.RoleTarget{}
+		}
+		d.nsRoleMap[ns.URI] = ns.RoleMapNS
+	}
+
 	d.roleMap = map[string]string{}
 	cat, err := d.r.Catalog()
 	if err != nil || cat == nil {
@@ -135,17 +149,51 @@ func (d *document) walkPageTree(ref pdd.Reference, counter *int) {
 	}
 }
 
-// resolveRole follows a custom structure type through RoleMap to its
-// standard PDF tag. Defensive against pathological cycles.
+// resolveRole follows a structure type through RoleMap until it reaches
+// a standard structure type or returns to a type it has already seen
+// (ISO 32000-1 §14.7.3 / ISO 32000-2 §14.7.3 NOTE 2). The first mapping
+// always applies, even to a standard type; whether an element is subject
+// to the role map at all is decided by the caller.
 func (d *document) resolveRole(name string) string {
-	for range 8 {
+	seen := map[string]bool{}
+	for !seen[name] {
+		seen[name] = true
 		mapped, ok := d.roleMap[name]
-		if !ok || mapped == name {
+		if !ok {
 			return name
 		}
 		name = mapped
+		if model.IsStandardStructureType(name) {
+			return name
+		}
 	}
 	return name
+}
+
+// resolveRoleNS follows typ in namespace uri through the /RoleMapNS
+// chain (ISO 32000-2 §14.8.6.2) until it reaches a type in a standard
+// namespace -- the PDF 1.7 or PDF 2.0 structure namespace, or MathML,
+// whose types are standard in their own right. It reports false when
+// the chain is absent, cyclic or ends in another non-standard
+// namespace. Only the first target of a mapping is followed; further
+// targets are fallbacks for processors that do not know the first.
+func (d *document) resolveRoleNS(uri, typ string) (string, bool) {
+	seen := map[[2]string]bool{}
+	for {
+		if seen[[2]string{uri, typ}] {
+			return "", false
+		}
+		seen[[2]string{uri, typ}] = true
+		targets := d.nsRoleMap[uri][typ]
+		if len(targets) == 0 {
+			return "", false
+		}
+		uri, typ = targets[0].NamespaceURI, targets[0].Type
+		switch uri {
+		case nsPDF, nsPDF2, nsMathML:
+			return typ, true
+		}
+	}
 }
 
 // PageCount returns the number of page leaves discovered during
@@ -415,6 +463,18 @@ func (e structElement) Type() string {
 		return ""
 	}
 	s := string(name)
+	// PDF 2.0: an element in a non-standard namespace (e.g. XHTML)
+	// gets its role from that namespace's /RoleMapNS. Skipped for
+	// documents without any /RoleMapNS, which spares the /NS lookup.
+	if e.doc.nsRoleMap != nil {
+		switch ns := e.Namespace(); ns {
+		case "", nsPDF, nsPDF2, nsMathML:
+		default:
+			if t, ok := e.doc.resolveRoleNS(ns, s); ok {
+				return t
+			}
+		}
+	}
 	mapped, hasMapping := e.doc.roleMap[s]
 	if !hasMapping || mapped == s {
 		return s
@@ -435,6 +495,21 @@ func (e structElement) Type() string {
 	return e.doc.resolveRole(s)
 }
 
+func (e structElement) RawType() string {
+	name, _ := e.dict.Name("S")
+	return string(name)
+}
+
+func (e structElement) BelongsToStandardNamespace() bool {
+	switch ns := e.Namespace(); ns {
+	case "", nsPDF, nsPDF2, nsMathML:
+		return true
+	default:
+		_, ok := e.doc.resolveRoleNS(ns, e.RawType())
+		return ok
+	}
+}
+
 // inStandardNamespace reports whether this element lives in the
 // default PDF structure namespace: no /NS at all, or one of the
 // registered PDF 1.7 / PDF 2.0 structure namespace URIs
@@ -443,11 +518,19 @@ func (e structElement) Type() string {
 // within that namespace.
 func (e structElement) inStandardNamespace() bool {
 	switch e.Namespace() {
-	case "", "http://iso.org/pdf/ssn", "http://iso.org/pdf2/ssn":
+	case "", nsPDF, nsPDF2:
 		return true
 	}
 	return false
 }
+
+// Namespace URIs registered by ISO 32000-2 §14.8.6.3 whose structure
+// types need no role mapping.
+const (
+	nsPDF    = "http://iso.org/pdf/ssn"
+	nsPDF2   = "http://iso.org/pdf2/ssn"
+	nsMathML = "http://www.w3.org/1998/Math/MathML"
+)
 
 func (e structElement) Children() []model.StructElement {
 	kObj, ok := e.dict.Get("K")
