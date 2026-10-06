@@ -998,13 +998,14 @@ type StructElement interface {
 	AssociatedFiles() []AssociatedFile
 
 	// Namespace returns the URI string of the namespace this element
-	// belongs to, as declared by its /NS entry (or inherited through
-	// the /P chain). Returns "" when no /NS attribute can be resolved
-	// on the element or any ancestor -- in tagged PDF this means the
-	// element falls into the default/PDF namespace. UA-17-005 uses
-	// this to verify that a 'math' struct child of Formula is
-	// actually declared in the W3C MathML namespace, not just named
-	// "math" by coincidence (the ISO 32000-2 §14.8.6.3 contract).
+	// belongs to, as declared by its own /NS entry. Returns "" when the
+	// element has no /NS (or it does not resolve) -- in tagged PDF this
+	// means the element is in the default standard structure namespace;
+	// /NS is not inherited from the parent (ISO 32000-2 Table 355).
+	// UA-17-005 uses this to verify that a 'math' struct child of
+	// Formula is actually declared in the W3C MathML namespace, not
+	// just named "math" by coincidence (the ISO 32000-2 §14.8.6.3
+	// contract).
 	Namespace() string
 
 	// Text returns the Unicode text drawn directly under this element's

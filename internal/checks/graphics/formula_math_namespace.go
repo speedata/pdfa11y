@@ -29,7 +29,7 @@ func (MathChildNamespace) Severity() engine.Severity { return engine.SeverityErr
 func (MathChildNamespace) Spec() engine.Spec         { return engine.SpecPDFUA2 }
 func (MathChildNamespace) WCAG() []string            { return []string{"1.3.1"} }
 func (MathChildNamespace) Description() string {
-	return "PDF/UA-2 §8.2.5.29.1 with ISO 32000-2 §14.8.6.3 requires a 'math' struct element nested under Formula to declare its namespace (directly via /NS or inherited via /P) as http://www.w3.org/1998/Math/MathML. A 'math' tag in the default PDF namespace is treated as an unmapped custom type by assistive technology -- the MathML semantics never surface."
+	return "PDF/UA-2 §8.2.5.29.1 with ISO 32000-2 §14.8.6.3 requires a 'math' struct element nested under Formula to declare its namespace via /NS as http://www.w3.org/1998/Math/MathML. A 'math' tag in the default PDF namespace is treated as an unmapped custom type by assistive technology -- the MathML semantics never surface."
 }
 
 func (c MathChildNamespace) Run(doc model.Document) []engine.Finding {

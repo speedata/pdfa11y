@@ -122,3 +122,38 @@ func TestTypeClassicRoleMapStopsAtStandard(t *testing.T) {
 		}
 	}
 }
+
+// TestNamespaceNotInherited checks that an element without /NS is in
+// the default standard structure namespace even when its parent is in
+// a foreign namespace (ISO 32000-2 Table 355): glu writes a Link without
+// /NS under an XHTML p.
+func TestNamespaceNotInherited(t *testing.T) {
+	objs := []string{
+		"<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 4 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+		"<< /Type /StructTreeRoot /K [5 0 R] /Namespaces [7 0 R 8 0 R] >>",
+		"<< /Type /StructElem /S /p /P 4 0 R /NS 8 0 R /K [6 0 R] >>",
+		"<< /Type /StructElem /S /Link /P 5 0 R >>",
+		"<< /Type /Namespace /NS (http://iso.org/pdf2/ssn) >>",
+		"<< /Type /Namespace /NS (http://www.w3.org/1999/xhtml) /RoleMapNS << /p [/P 7 0 R] >> >>",
+	}
+	doc, err := pdf.Load(bytes.NewReader(buildPDF(objs)))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	kids, _ := doc.StructTreeRootKids()
+	if len(kids) != 1 || len(kids[0].Children()) != 1 {
+		t.Fatalf("unexpected structure tree: %d root kids", len(kids))
+	}
+	link := kids[0].Children()[0]
+	if ns := link.Namespace(); ns != "" {
+		t.Errorf("Namespace() = %q, want \"\" (no inheritance from the parent)", ns)
+	}
+	if !link.BelongsToStandardNamespace() {
+		t.Errorf("BelongsToStandardNamespace() = false, want true")
+	}
+	if typ := link.Type(); typ != "Link" {
+		t.Errorf("Type() = %q, want \"Link\"", typ)
+	}
+}
